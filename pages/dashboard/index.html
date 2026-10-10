@@ -1,0 +1,1781 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>光谱核心管理</title>
+                   
+    <script src="./vendor/vue.global.js">
+// 面板交互：读取后端数据，将编辑结果提交到对应接口，并更新当前视图。
+</script>
+    <style>
+/* 面板样式：布局、列表、编辑表单和页内交互提示。 */
+
+        :root {
+            --primary: #3b82f6; --primary-soft: rgba(59,130,246,0.1);
+            --bg: #f8fafc; --card: #ffffff;
+            --text: #1e293b; --text-light: #64748b;
+            --border: #e2e8f0;
+            --l1: #0369a1; --l1-bg: #e0f2fe;
+            --l2: #9a3412; --l2-bg: #ffedd5;
+            --l3: #6b21a8; --l3-bg: #f3e8ff;
+        }
+        body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; line-height: 1.5; }
+        [v-cloak] { display: none !important; }
+
+        .loading-screen { height: 80vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+        .spinner { width: 40px; height: 40px; border: 4px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .container { max-width: 1000px; margin: 0 auto; }
+        .header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 30px; }
+        .title h1 { font-size: 28px; font-weight: 800; margin: 0; letter-spacing: -1px; }
+        .title p { color: var(--text-light); margin: 5px 0 0 0; font-size: 14px; font-weight: 500; }
+
+        .stats-grid { display: grid; grid-template-cols: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 30px; }
+        .stat-card { background: var(--card); padding: 20px; border-radius: 20px; border: 1px solid var(--border); box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
+        .stat-label { font-size: 11px; font-weight: 800; color: var(--text-light); text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; gap: 6px; }
+        .stat-value { font-size: 28px; font-weight: 900; margin-top: 8px; font-family: tabular-nums; }
+
+        .tag { font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 6px; }
+        .tag-l1 { background: var(--l1-bg); color: var(--l1); }
+        .tag-l2 { background: var(--l2-bg); color: var(--l2); }
+        .tag-l3 { background: var(--l3-bg); color: var(--l3); }
+
+        .main-card { background: var(--card); border-radius: 24px; border: 1px solid var(--border); overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+        .selector-area { padding: 24px; background: #fcfcfd; border-bottom: 1px solid var(--border); }
+        select { width: 100%; padding: 12px 16px; border-radius: 14px; border: 1px solid var(--border); font-size: 15px; font-weight: 600; outline: none; transition: all 0.2s; cursor: pointer; }
+        select:focus { border-color: var(--primary); box-shadow: 0 0 0 4px var(--primary-soft); }
+
+        .control-panel { padding: 30px; display: grid; grid-template-cols: 1.5fr 1fr; gap: 40px; border-bottom: 1px solid var(--border); }
+        label { display: block; font-size: 11px; font-weight: 800; color: var(--text-light); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+        textarea { width: 100%; border: 1px solid var(--border); border-radius: 16px; padding: 15px; font-size: 14px; background: #fafafa; transition: all 0.2s; resize: vertical; min-height: 120px; }
+        textarea:focus { background: white; border-color: var(--primary); outline: none; }
+
+        .gauge-group { display: flex; flex-direction: column; gap: 20px; }
+        .gauge-item { background: #f8fafc; padding: 15px; border-radius: 18px; border: 1px solid #f1f5f9; }
+        .gauge-header { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 12px; font-weight: 700; }
+        input[type="range"] { width: 100%; accent-color: var(--primary); }
+
+        .tabs-nav { display: flex; padding: 0 20px; background: #fcfcfd; gap: 10px; border-bottom: 1px solid var(--border); overflow-x: auto; }
+        .tab-btn { padding: 16px 20px; font-size: 14px; font-weight: 700; color: var(--text-light); border: none; background: none; cursor: pointer; border-bottom: 3px solid transparent; transition: all 0.2s; white-space: nowrap; }
+        .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+        .tab-content { padding: 24px; min-height: 400px; }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; font-size: 11px; font-weight: 800; color: #94a3b8; padding: 12px; text-transform: uppercase; }
+        td { padding: 16px 12px; border-bottom: 1px solid #f8fafc; font-size: 14px; }
+
+        .log-item { padding: 16px; border-left: 3px solid var(--border); margin-bottom: 16px; position: relative; transition: all 0.2s; }
+        .log-item:hover { border-left-color: var(--primary); background: #fcfcfd; }
+        .log-meta { font-size: 10px; font-weight: 700; color: #94a3b8; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; }
+        .log-script { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; color: #64748b; background: #f8fafc; padding: 12px; border-radius: 12px; border: 1px solid #f1f5f9; margin-top: 8px; font-style: italic; }
+        .log-text { font-weight: 600; color: var(--text-main); }
+
+        .btn { border: none; border-radius: 12px; padding: 10px 20px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-ghost { background: #f1f5f9; color: var(--text-light); }
+        .btn-danger { background: #fee2e2; color: #dc2626; }
+        .btn-sm { padding: 6px 12px; font-size: 11px; border-radius: 8px; }
+
+        .alert-box { background: #fee2e2; color: #991b1b; padding: 20px; border-radius: 16px; margin-top: 20px; font-size: 14px; font-weight: 600; }
+
+                                                                  
+                                                  
+                                                                                
+                                                                     
+                                                      
+                                          
+                            
+        .modal-mask { position: fixed; inset: 0; background: rgba(15,23,42,0.45); display: flex; align-items: center; justify-content: center; z-index: 999; padding: 20px; }
+        .modal-card { background: var(--card); border-radius: 20px; padding: 26px; width: 100%; max-width: 460px; box-shadow: 0 20px 50px rgba(0,0,0,0.2); }
+        .modal-card h3 { margin: 0 0 6px 0; font-size: 17px; font-weight: 800; }
+        .modal-card .modal-hint { font-size: 12px; color: var(--text-light); margin-bottom: 16px; white-space: pre-line; }
+        .modal-card textarea { min-height: 110px; }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+
+        .toast { position: fixed; left: 50%; bottom: 32px; transform: translateX(-50%); background: #1e293b; color: white; padding: 12px 22px; border-radius: 14px; font-size: 13px; font-weight: 700; z-index: 1000; box-shadow: 0 10px 30px rgba(0,0,0,0.25); }
+        .toast.err { background: #dc2626; }
+
+                                                      
+                                        
+                                  
+                                
+        .wb-toolbar { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; }
+        .wb-count { font-size: 12px; color: #94a3b8; font-weight: 700; }
+        .wb-hint { color: #94a3b8; font-size: 12px; margin: 0 0 12px; }
+        .wb-empty { color: #94a3b8; font-size: 13px; text-align: center; padding: 24px; }
+        .wb-card { border: 1px solid var(--border); border-radius: 14px; background: #fff; margin-bottom: 10px; overflow: hidden; }
+        .wb-card-off { opacity: .5; }
+        .wb-card-open { box-shadow: 0 4px 14px rgba(15,23,42,.07); }
+        .wb-card-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; cursor: pointer; }
+        .wb-card-head:hover { background: #fcfcfd; }
+        .wb-caret { color: #94a3b8; font-size: 11px; width: 12px; }
+        .wb-kill { color: var(--primary); cursor: pointer; font-size: 15px; }
+        .wb-kill.off { color: #cbd5e1; }
+        .wb-name { flex: 1; font-weight: 700; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .wb-sum { font-size: 11px; color: #94a3b8; font-weight: 700; white-space: nowrap; }
+        .wb-sum-tok { color: #cbd5e1; }
+        .wb-del { color: #ef4444; cursor: pointer; font-size: 13px; font-weight: 800; padding: 0 4px; }
+        .wb-card-body { border-top: 1px solid var(--border); padding: 14px; background: #fcfcfd; }
+        .wb-row { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 12px; }
+        .wb-col { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+        .wb-f1 { flex: 1; } .wb-f2 { flex: 2; } .wb-f4 { flex: 4; } .wb-fauto { flex: 0 0 190px; }
+        .wb-col > small { font-size: 10px; font-weight: 800; color: var(--text-light); text-transform: none; letter-spacing: .3px; }
+        .wb-card-body input[type="text"], .wb-card-body input[type="number"],
+        .wb-card-body textarea, .wb-card-body select { width: 100%; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--border); font-size: 13px; font-weight: 600; outline: none; background: #fff; transition: border-color .2s; }
+        .wb-card-body input:focus, .wb-card-body textarea:focus, .wb-card-body select:focus { border-color: var(--primary); }
+        .wb-card-body input:disabled { background: #f1f5f9; color: #cbd5e1; }
+        .wb-card-body textarea { min-height: 0; resize: vertical; }
+        .wb-title { flex: 1; font-weight: 700 !important; }
+        .wb-state { flex: 0 0 130px; }
+        .wb-num-in { width: 84px !important; }
+        .wb-head-row { align-items: center; }
+        .wb-content-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 5px; }
+        .wb-content-head > small { font-size: 10px; font-weight: 800; color: var(--text-light); }
+        .wb-tok { font-size: 10px; color: #94a3b8; font-weight: 700; }
+        .wb-checks { display: flex; gap: 14px; flex-wrap: wrap; margin-left: auto; }
+        .wb-mini { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--text); text-transform: none; letter-spacing: 0; margin: 0; white-space: nowrap; }
+        .wb-mini input[type="checkbox"] { width: auto; }
+        .wb-mini input[type="number"] { width: 84px !important; }
+        .wb-bottom { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding-top: 12px; border-top: 1px dashed var(--border); }
+        .wb-spacer { flex: 1; }
+    </style>
+</head>
+<body>
+<!-- 光谱数据面板：按当前会话查看记录，管理共同生活、人物、导演和世界书。 -->
+    <div id="app" v-cloak>
+                       
+        <div v-if="!initialized" class="loading-screen">
+            <div class="spinner"></div>
+            <div style="font-weight: 700; color: #94a3b8;">正在建立叙事链路...</div>
+            <p style="font-size: 12px; color: #cbd5e1; margin-top: 10px;">{{ statusMsg }}</p>
+            <div v-if="fatalError" class="alert-box">{{ fatalError }}</div>
+        </div>
+
+                    
+        <div v-else class="container">
+            <div class="header">
+                <div class="title">
+                    <h1>光谱核心控制台</h1>
+                    <p>Narrative Engine Full CRUD Dashboard</p>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <label style="margin: 0; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" v-model="showHistory" style="width: auto;"> <span style="font-size: 12px;">显示历史全量</span>
+                    </label>
+                    <button class="btn btn-ghost" @click="refresh">同步数据</button>
+                </div>
+            </div>
+
+                         
+            <div class="stats-grid">
+                <div class="stat-card" v-for="s in stats" :key="s.label">
+                    <div class="stat-label"><span :class="['tag', s.tagClass]">{{ s.level }}</span> {{ s.label }}</div>
+                    <div class="stat-value" :style="{color: s.color}">{{ overview.counts?.[s.key] || 0 }}</div>
+                </div>
+            </div>
+
+            <div class="main-card">
+                             
+                <div class="selector-area">
+                    <label>管理目标 (UMO)</label>
+                    <select v-model="filterUmo">
+                        <option value="">选择一个会话以进入 L3 深度管理...</option>
+                        <option v-for="u in umos" :key="u.id" :value="u.id">{{ u.label }}</option>
+                    </select>
+                </div>
+
+                                 
+                <div v-if="filterUmo" class="control-panel">
+                    <div>
+                                                           
+                                                       
+                                                            
+                                                         
+                                                            
+                                                          
+                        <label>本会话的往来认知（只读）</label>
+                        <textarea :value="l3.continuity" rows="6" readonly
+                                  style="background:#f8fafc; color:#64748b;"
+                                  placeholder="（这个会话还没有积累往来认知）"></textarea>
+                        <p style="font-size:12px; color:#94a3b8; margin-top:6px;">
+                            这是**历史往来的记录**，不再注入给她。要改她此刻的处境，
+                            用下面「生活主线」。
+                        </p>
+
+                        <div style="margin-top: 20px;">
+                            <label>生活主线（全局 · 她此刻的处境）</label>
+                            <textarea v-model="lifeStateText" rows="4"
+                                      placeholder="她此刻在哪、在干什么、什么心情"></textarea>
+                            <p style="font-size:12px; color:#94a3b8; margin-top:6px;">
+                                这是**所有会话共用**的一份。保存后立刻对她生效。
+                            </p>
+                        </div>
+
+                        <div style="margin-top: 24px;">
+                            <label>行程（全局 · JSON，只读）</label>
+                            <textarea :value="lifePlanText" rows="3" readonly
+                                      style="font-family: monospace; font-size: 12px; background:#f8fafc; color:#64748b;"
+                                      placeholder="（没有安排）"></textarea>
+                            <p style="font-size:12px; color:#94a3b8; margin-top:6px;">
+                                行程现在由生活主线管理，可在「生活线」标签页查看。
+                            </p>
+                        </div>
+
+                        <div style="margin-top: 15px; display: flex; gap: 10px;">
+                            <button class="btn btn-primary" @click="saveL3">保存生活主线</button>
+                            <button class="btn btn-ghost" @click="resetClock">重置时钟</button>
+                        </div>
+                    </div>
+                    <div class="gauge-group">
+                        <div class="gauge-item">
+                            <div class="gauge-header"><span>主动意愿 (Willingness)</span><span style="color: var(--primary);">{{(l3.willingness*100).toFixed(0)}}%</span></div>
+                            <input type="range" v-model.number="l3.willingness" min="0" max="1" step="0.01">
+                        </div>
+                        <div v-if="l3.volatile?.length" style="margin-top: 10px;">
+                            <label>待合流变动碎片 ({{l3.volatile.length}})</label>
+                            <div style="background: #f1f5f9; padding: 12px; border-radius: 12px; font-size: 11px; color: #64748b; max-height: 100px; overflow-y: auto;">
+                                <div v-for="(v, i) in l3.volatile" :key="i" style="margin-bottom: 4px;">· {{ v }}</div>
+                            </div>
+                            <button @click="clearVolatile" style="border: none; background: none; color: #ef4444; font-size: 10px; font-weight: 800; cursor: pointer; margin-top: 8px;">清空缓冲区</button>
+                        </div>
+                    </div>
+                </div>
+
+                               
+                <div class="tabs-nav">
+                    <button v-for="t in tabs" :key="t.id" @click="switchTab(t.id)" :class="['tab-btn', {active: currentTab === t.id}]">{{ t.label }}</button>
+                </div>
+
+                <div class="tab-content">
+                                    
+                    <div v-if="currentTab === 'intents'">
+                        <div style="display: flex; justify-content: flex-end; margin-bottom: 15px;"><button class="btn btn-primary btn-sm" @click="addIntent" v-if="filterUmo">+ 手动派发任务</button></div>
+                        <table>
+                            <thead><tr><th>ID</th><th>任务/承诺摘要</th><th>状态</th><th>预计计划时间</th><th style="text-align: right;">操作</th></tr></thead>
+                            <tbody>
+                                <tr v-for="i in dataList" :key="i.id">
+                                    <td style="font-family: monospace; color: #cbd5e1;">#{{ i.id }}</td>
+                                    <td style="font-weight: 700;">{{ i.summary }}</td>
+                                    <td><span class="tag tag-l2">{{ i.status }}</span></td>
+                                    <td style="font-size: 12px; color: #94a3b8;">{{ formatTs(i.not_before) }}</td>
+                                    <td style="text-align: right; display: flex; gap: 10px; justify-content: flex-end;">
+                                        <button @click="editIntent(i)" class="btn btn-ghost btn-sm">修正</button>
+                                        <button @click="cancelIntent(i.id)" v-if="i.status === 'waiting'" class="btn btn-danger btn-sm">取消</button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                                             
+                    <div v-if="currentTab === 'pending'">
+                        <table>
+                            <thead><tr><th>ID</th><th>消息投递内容</th><th>状态</th><th>投递时刻</th><th style="text-align: right;">操作</th></tr></thead>
+                            <tbody>
+                                <tr v-for="p in dataList" :key="p.id">
+                                    <td style="font-family: monospace; color: #cbd5e1;">#{{ p.id }}</td>
+                                    <td style="font-weight: 600;">{{ p.content }}</td>
+                                    <td><span class="tag tag-l1">{{ ({waiting:"等待发送", sending:"发送中／结果待核对", uncertain:"发送中断，结果待核对", sent:"已送达", cancelled:"已作废"})[p.status] || p.status }}</span></td>
+                                    <td style="font-size: 12px; color: #94a3b8;">{{ formatTs(p.due_ts) }}</td>
+                                    <td style="text-align: right; display: flex; gap: 10px; justify-content: flex-end;">
+                                        <button v-if="p.status === 'uncertain'" @click="retryPending(p.id)" class="btn btn-ghost btn-sm">核对后恢复待发</button>
+                                        <button v-if="p.status !== 'sending'" @click="editPending(p)" class="btn btn-ghost btn-sm">修正</button>
+                                        <button @click="cancelPending(p.id)" v-if="p.status === 'waiting' || p.status === 'uncertain'" class="btn btn-danger btn-sm">作废</button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                                        
+                    <div v-if="currentTab === 'memories'">
+                        <div v-if="!filterUmo" style="padding: 100px; text-align: center; color: #cbd5e1; font-weight: 700;">请选定会话以管理长期认知</div>
+                        <div v-else>
+                            <div style="display: flex; justify-content: flex-end; margin-bottom: 20px;"><button class="btn btn-primary" @click="addMemory">+ 手动录入核心认知</button></div>
+                            <div style="display: grid; grid-template-cols: 1fr 1fr; gap: 15px;">
+                                <div v-for="m in dataList" :key="m.id" style="padding: 20px; border: 1px solid var(--border); border-radius: 20px; background: #fafafa;">
+                                    <div style="font-weight: 700; margin-bottom: 12px; font-size: 15px;">{{ m.text }}</div>
+                                                                           
+                                                                              
+                                                                 
+                                    <div v-if="m.source_entry_ids" style="font-size: 11px; color: #94a3b8; margin-bottom: 10px;">
+                                        <span @click="toggleSources(m)" style="color: #4f46e5; cursor: pointer; user-select: none;">
+                                            {{ sourceOpen[m.id] ? '▾' : '▸' }} 来源（{{ sourceCount(m) }} 条往来）
+                                        </span>
+                                        <div v-if="sourceOpen[m.id]" style="margin-top: 8px; padding: 8px 10px; background: #fff; border-radius: 10px; border: 1px solid var(--border);">
+                                            <div v-if="!sourceCache[m.id]" style="color: #cbd5e1;">读取中…</div>
+                                            <div v-else-if="!sourceCache[m.id].length" style="color: #cbd5e1;">这几条往来已被删除或查不到</div>
+                                            <div v-for="s in sourceCache[m.id]" :key="s.id" style="margin-bottom: 5px; line-height: 1.5;">
+                                                <span style="color: #94a3b8;">[{{ s.when }}; {{ s.who }}]</span> {{ s.text }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div style="margin-bottom: 15px;">
+                                        <label style="margin-bottom: 5px; font-size: 9px;">重要性权重 ({{(m.importance*100).toFixed(0)}}%)</label>
+                                        <input type="range" :value="m.importance" @change="updateMemoryImportance(m, $event.target.value)" min="0" max="1" step="0.05">
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                        <button @click="editMemory(m)" class="btn btn-ghost btn-sm">编辑文本</button>
+                                        <button style="color: #ef4444; font-size: 12px; font-weight: 700; border: none; background: none; cursor: pointer;" @click="deleteMemory(m.id)">永久遗忘</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                                                      
+                    <div v-if="currentTab === 'entries'">
+                        <div v-for="e in dataList" :key="e.id" class="log-item">
+                            <div class="log-meta">
+                                <span style="font-family: monospace;">{{ formatTs(e.ts) }} · <span :class="['tag', e.kind==='script'?'tag-l3':'tag-l1']">{{ e.kind }}</span></span>
+                                <div style="display: flex; gap: 10px;">
+                                    <button @click="editEntry(e)" class="btn btn-ghost btn-sm" style="background: none; color: #3b82f6; padding: 0;">修正</button>
+                                    <button @click="deleteEntry(e.id)" class="btn btn-ghost btn-sm" style="background: none; color: #ef4444; padding: 0;">删除</button>
+                                </div>
+                            </div>
+                            <div v-if="e.kind === 'script'" class="log-script">{{ e.text }}</div>
+                            <div v-else class="log-text">{{ e.text }}</div>
+                        </div>
+                    </div>
+
+                                                
+                    <div v-if="currentTab === 'lives'">
+                        <div v-if="lifeDetail">
+                            <button class="btn btn-ghost btn-sm" @click="lifeDetail = null"
+                                    style="background:none; color:#3b82f6; padding:0; margin-bottom:14px;">
+                                ← 返回时间轴
+                            </button>
+                            <div style="font-weight:800; font-size:16px; margin-bottom:6px;">
+                                {{ lifeDetail.life.title || '(未命名)' }}
+                                <span class="tag" :class="lifeDetail.life.kind === 'outing' ? 'tag-l2' : 'tag-l1'">
+                                    {{ lifeKindLabel(lifeDetail.life.kind) }}
+                                </span>
+                                <button class="btn btn-ghost btn-sm" @click="openLifeEdit(lifeDetail.life)"
+                                        style="background:none; color:#3b82f6; padding:0; margin-left:8px; font-weight:700;">
+                                    编辑这一段
+                                </button>
+                                <button class="btn btn-ghost btn-sm" @click="deleteLife(lifeDetail.life)"
+                                        style="background:none; color:#ef4444; padding:0; margin-left:10px; font-weight:700;">
+                                    删除这一段
+                                </button>
+                            </div>
+                            <div style="font-size:12px; color:#94a3b8; margin-bottom:10px;">
+                                {{ formatTs(lifeDetail.life.started_at) }} →
+                                {{ lifeDetail.life.ended_at ? formatTs(lifeDetail.life.ended_at) : '进行中' }}
+                                <span v-if="lifeDetail.life.with_who"> · 跟 {{ lifeDetail.life.with_who }}</span>
+                            </div>
+                            <div v-if="lifeDetail.life.summary && !lifeEdit" class="alert-box" style="margin-bottom:14px;">
+                                {{ lifeDetail.life.summary }}
+                            </div>
+
+                                                                   
+                                                       
+                            <div v-if="lifeEdit" class="wb-card-body"
+                                 style="border:1px solid var(--border); border-radius:14px; margin-bottom:16px;">
+                                <div class="wb-row wb-head-row">
+                                    <div class="wb-col wb-f1">
+                                        <small>标题</small>
+                                        <input type="text" v-model="lifeEdit.title"
+                                               placeholder="例：和朋友骑车去小吃摊的那晚">
+                                    </div>
+                                    <div class="wb-col wb-f1">
+                                        <small>类型</small>
+                                        <select v-model="lifeEdit.kind">
+                                            <option value="home">在家</option>
+                                            <option value="outing">外出</option>
+                                        </select>
+                                    </div>
+                                    <div class="wb-col wb-f1">
+                                        <small>跟谁</small>
+                                        <input type="text" v-model="lifeEdit.with_who" placeholder="留空 = 一个人">
+                                    </div>
+                                </div>
+                                <div class="wb-row">
+                                    <div class="wb-col wb-f1">
+                                        <small>开始（YYYY-MM-DDTHH:mm:ss）</small>
+                                        <input type="text" v-model="lifeEdit.started_at">
+                                    </div>
+                                    <div class="wb-col wb-f1">
+                                        <small>结束（留空 = 进行中）</small>
+                                        <input type="text" v-model="lifeEdit.ended_at"
+                                               placeholder="留空 = 这一段还没结束">
+                                    </div>
+                                </div>
+                                <div class="wb-col" style="margin-bottom:12px;">
+                                    <small>概述</small>
+                                    <textarea rows="3" v-model="lifeEdit.summary"></textarea>
+                                </div>
+                                <div style="display:flex; gap:10px;">
+                                    <button class="btn btn-primary btn-sm" @click="saveLifeEdit">保存</button>
+                                    <button class="btn btn-ghost btn-sm" @click="cancelLifeEdit">取消</button>
+                                </div>
+                                <p style="color:#94a3b8; font-size:11px; margin:10px 0 0;">
+                                    外出锁不在这里改 —— 它和全局的主线所有权是一对，
+                                    要动请回时间轴用「解除外出锁（归家）」。
+                                </p>
+                            </div>
+                            <div v-if="lifeDetail.total > lifeDetail.shown"
+                                 style="font-size:12px; color:#f59e0b; margin-bottom:12px;">
+                                共 {{ lifeDetail.total }} 条，此处显示最早的 {{ lifeDetail.shown }} 条
+                            </div>
+                            <div v-for="e in lifeDetail.entries" :key="e.id" class="log-item">
+                                <div class="log-meta">
+                                    <span style="font-family: monospace;">
+                                        {{ formatTs(e.ts) }} ·
+                                        <span :class="['tag', e.kind==='script'?'tag-l3':'tag-l1']">{{ e.kind }}</span>
+                                        <span v-if="e.sender" style="color:#94a3b8;"> · {{ e.sender }}</span>
+                                    </span>
+                                    <div style="display:flex; gap:10px;">
+                                        <button @click="editLifeEntry(e)" class="btn btn-ghost btn-sm"
+                                                style="background:none; color:#3b82f6; padding:0;">修正</button>
+                                        <button @click="deleteLifeEntry(e)" class="btn btn-ghost btn-sm"
+                                                style="background:none; color:#ef4444; padding:0;">删除</button>
+                                    </div>
+                                </div>
+                                <div v-if="e.kind === 'script'" class="log-script">{{ e.text }}</div>
+                                <div v-else class="log-text">{{ e.text }}</div>
+                            </div>
+                        </div>
+
+                        <div v-else>
+                            <div style="display:flex; gap:10px; margin-bottom:14px; align-items:center;">
+                                <button class="btn btn-ghost btn-sm" @click="fetchLives">刷新</button>
+                                                                   
+                                                                    
+                                                                  
+                                <button class="btn btn-primary btn-sm" @click="unlockLife">
+                                    解除外出锁（归家）
+                                </button>
+                                <span v-if="lifeOwner && lifeOwner.session"
+                                      style="font-size:12px; color:#f59e0b; font-weight:700;">
+                                    当前锁在 {{ lifeOwner.session }}<span v-if="lifeOwner.with">，跟 {{ lifeOwner.with }}</span>
+                                    —— 锁着的时候主动消息只往那个会话发
+                                </span>
+                            </div>
+                            <p style="color:#94a3b8; font-size:13px; margin-bottom:14px;">
+                                她只有**一条**生活线：任意时刻处在**一段**连续经历里。
+                                边界是 外出 · 归家 · 入睡 · 醒来 —— 内心戏按生活段归属，
+                                不按会话，所以从任何会话看到的都是她此刻这段生活的内心。
+                            </p>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>时间</th><th>类型</th><th>标题</th>
+                                        <th>同行</th><th>时长</th><th style="text-align:right;">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="l in lifeList" :key="l.life_id">
+                                        <td style="font-family:monospace; font-size:12px; color:#cbd5e1;">
+                                            {{ formatTs(l.started_at) }}
+                                        </td>
+                                        <td>
+                                            <span class="tag" :class="l.kind === 'outing' ? 'tag-l2' : 'tag-l1'">
+                                                {{ lifeKindLabel(l.kind) }}
+                                            </span>
+                                            <span v-if="l.ongoing" class="tag tag-l3" style="margin-left:4px;">进行中</span>
+                                        </td>
+                                        <td style="font-weight:700;">{{ l.title || '—' }}</td>
+                                        <td style="font-size:12px; color:#94a3b8;">{{ l.with_who || '—' }}</td>
+                                        <td style="font-size:12px; color:#94a3b8;">{{ lifeDur(l) }}</td>
+                                        <td style="text-align:right; white-space:nowrap;">
+                                            <button @click="openLife(l.life_id)" class="btn btn-ghost btn-sm"
+                                                    style="background:none; color:#3b82f6; padding:0;">查看</button>
+                                            <button @click="editLifeTitle(l)" class="btn btn-ghost btn-sm"
+                                                    style="background:none; color:#94a3b8; padding:0; margin-left:10px;">改名</button>
+                                            <button @click="deleteLife(l)" class="btn btn-ghost btn-sm"
+                                                    style="background:none; color:#ef4444; padding:0; margin-left:10px;">删除</button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <p v-if="!lifeList.length" style="padding:60px; text-align:center; color:#cbd5e1; font-weight:700;">
+                                还没有生活段
+                            </p>
+                        </div>
+                    </div>
+
+                                               
+                    <div v-if="currentTab === 'director'">
+                        <div style="display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap;">
+                            <button v-for="s in [
+                                        { id: 'storylets', label: 'storylet 库' },
+                                        { id: 'fires', label: '触发转录（只读）' },
+                                        { id: 'threads', label: '叙事线（伏笔）' },
+                                        { id: 'state', label: '故事状态' },
+                                    ]" :key="s.id"
+                                    class="btn btn-sm" :class="drSub === s.id ? 'btn-primary' : 'btn-ghost'"
+                                    @click="drSub = s.id">{{ s.label }}</button>
+                            <button class="btn btn-ghost btn-sm" @click="fetchDirector">刷新</button>
+                        </div>
+
+                                           
+                        <div v-if="drSub === 'storylets'">
+                            <p style="color:#94a3b8; font-size:12px; margin:0 0 10px;">
+                                只有 <code>narrative</code> 会进她的提示词；<code>condition</code> /
+                                <code>effects</code> 是 JSON，改错会让她一条牌都出不来。
+                            </p>
+                            <table>
+                                <thead><tr>
+                                    <th>sid</th><th>类型</th><th>优先级</th><th>权重</th>
+                                    <th>正文</th><th style="text-align:right;">操作</th>
+                                </tr></thead>
+                                <tbody>
+                                    <tr v-for="st in drStorylets" :key="st.sid">
+                                        <td style="font-family:monospace; font-size:12px; font-weight:700;">
+                                            {{ st.sid }}
+                                        </td>
+                                        <td><span class="tag" :class="st.kind === 'fallback' ? 'tag-l2' : 'tag-l1'">
+                                            {{ st.kind }}</span></td>
+                                        <td>{{ st.priority }}</td>
+                                        <td>{{ st.weight }}</td>
+                                        <td style="font-size:12px; max-width:420px; white-space:pre-wrap;">{{ st.narrative }}</td>
+                                        <td style="text-align:right; white-space:nowrap;">
+                                            <button class="btn btn-ghost btn-sm" @click="drSchemaField(st, 'narrative')">正文</button>
+                                            <button class="btn btn-ghost btn-sm" @click="drSchemaField(st, 'condition')">条件</button>
+                                            <button class="btn btn-ghost btn-sm" @click="drSchemaField(st, 'effects')">效果</button>
+                                            <button class="btn btn-sm" :class="st.enabled ? 'btn-danger' : 'btn-primary'"
+                                                    @click="toggleStorylet(st)">{{ st.enabled ? '禁用' : '启用' }}</button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                                     
+                        <div v-if="drSub === 'fires'">
+                            <p style="color:#94a3b8; font-size:12px; margin:0 0 10px;">
+                                这是**重建的唯一依据**，只增不改 —— 面板故意不提供任何写入口。
+                                <code>delivered=0</code> 是「这一拍没发出去」（她沉默 / 被落点闸掐掉）。
+                            </p>
+                            <table>
+                                <thead><tr>
+                                    <th>#</th><th>时刻</th><th>sid</th><th>类型</th>
+                                    <th>落点</th><th>发出</th><th>正文</th>
+                                </tr></thead>
+                                <tbody>
+                                    <tr v-for="f in drFires" :key="f.id">
+                                        <td style="font-family:monospace; color:#cbd5e1;">{{ f.id }}</td>
+                                        <td style="font-size:12px; color:#94a3b8;">{{ formatTs(f.ts) }}</td>
+                                        <td style="font-family:monospace; font-size:12px; font-weight:700;">{{ f.sid }}</td>
+                                        <td><span class="tag">{{ f.kind }}</span></td>
+                                        <td style="font-family:monospace; font-size:11px;">{{ (f.umo || '').replace('default:', '') }}</td>
+                                        <td>
+                                            <span class="tag" :class="f.delivered ? 'tag-l1' : 'tag-l3'">
+                                                {{ f.delivered ? '已发出' : '沉默' }}</span>
+                                        </td>
+                                        <td style="font-size:12px; max-width:360px; white-space:pre-wrap;">{{ f.narrative }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                                    
+                        <div v-if="drSub === 'threads'">
+                            <table>
+                                <thead><tr>
+                                    <th>tid</th><th>标题</th><th>状态</th>
+                                    <th>计划回收</th><th>开在哪一拍</th><th>超期</th>
+                                </tr></thead>
+                                <tbody>
+                                    <tr v-for="t in drThreads" :key="t.tid">
+                                        <td style="font-family:monospace; font-size:12px; font-weight:700;">{{ t.tid }}</td>
+                                        <td style="font-size:12px;">{{ t.title }}</td>
+                                        <td><span class="tag" :class="t.state === 'paid' ? 'tag-l1' : 'tag-l2'">
+                                            {{ t.state }}</span></td>
+                                        <td style="font-size:12px; max-width:320px;">{{ t.planned_payoff }}</td>
+                                        <td>{{ t.open_beat }}</td>
+                                        <td>{{ t.due_beats }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                                     
+                        <div v-if="drSub === 'state'">
+                            <pre style="background:#f8fafc; border:1px solid var(--border); border-radius:12px;
+                                        padding:14px; font-size:12px; overflow:auto; max-height:520px;">{{ JSON.stringify(drState, null, 2) }}</pre>
+                        </div>
+                    </div>
+
+                                                   
+                    <div v-if="currentTab === 'persons'">
+                        <div v-if="!personDetail">
+                            <p style="color:#94a3b8; font-size:13px; margin-bottom:14px;">
+                                同一个人在私聊、群聊里的好感与认知是**同一份**档案（以平台用户 ID 为锚点）。
+                                点开某人可查看他在哪些场合出现过、以及关于他的长期认知。
+                            </p>
+                            <table>
+                                <thead><tr><th>称谓</th><th>账号</th><th>一贯好感</th><th>一贯信任</th><th>场合</th><th>认知</th><th style="text-align:right;">操作</th></tr></thead>
+                                <tbody>
+                                    <tr v-for="p in dataList" :key="p.person_id">
+                                        <td style="font-weight:700;">{{ p.name || '(无名)' }}</td>
+                                        <td style="font-family:monospace; font-size:12px; color:#cbd5e1;">{{ p.person_id }}</td>
+                                        <td><span class="tag" :class="p.affinity >= 0.7 ? 'tag-l1' : 'tag-l2'">{{ p.affinity.toFixed(2) }}</span></td>
+                                        <td><span class="tag tag-l2">{{ p.trust.toFixed(2) }}</span></td>
+                                        <td style="font-size:12px; color:#94a3b8;">{{ p.session_count }} 处</td>
+                                        <td style="font-size:12px; color:#94a3b8;">{{ p.memory_count }} 条</td>
+                                        <td style="text-align:right;">
+                                            <button class="btn btn-ghost btn-sm" @click="openPerson(p.person_id)">详情</button>
+                                            <button class="btn btn-danger btn-sm" @click="removePerson(p)">删除</button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <p v-if="!dataList.length" style="color:#94a3b8; font-size:13px; margin-top:12px;">
+                                暂无人物档案。档案在收到带真实发送者 ID 的消息时自动建立；
+                                历史数据的存量关系可用 tools/backfill_persons.py 回填。
+                            </p>
+                        </div>
+
+                        <div v-else>
+                            <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
+                                <button class="btn btn-ghost btn-sm" @click="personDetail = null">← 返回列表</button>
+                                <strong style="font-size:16px;">{{ personDetail.person.name || '(无名)' }}</strong>
+                                <span style="font-family:monospace; font-size:12px; color:#94a3b8;">{{ personDetail.person.person_id }}</span>
+                            </div>
+
+                            <div class="grid-2" style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
+                                <div class="stat-card">
+                                    <div style="font-size:12px; color:#94a3b8;">一贯好感（跨场合）</div>
+                                    <div style="font-size:22px; font-weight:800;">{{ Number(personDetail.person.affinity).toFixed(2) }}</div>
+                                    <input type="range" min="0" max="1" step="0.01" v-model.number="personDetail.person.affinity" style="width:100%;">
+                                </div>
+                                <div class="stat-card">
+                                    <div style="font-size:12px; color:#94a3b8;">一贯信任（跨场合）</div>
+                                    <div style="font-size:22px; font-weight:800;">{{ Number(personDetail.person.trust).toFixed(2) }}</div>
+                                    <input type="range" min="0" max="1" step="0.01" v-model.number="personDetail.person.trust" style="width:100%;">
+                                </div>
+                            </div>
+
+                            <div style="margin-bottom:14px;">
+                                <label style="font-size:12px; color:#94a3b8;">整体印象</label>
+                                <textarea v-model="personDetail.person.impression" rows="2"
+                                          placeholder="一两句：她对这个人的整体印象"
+                                          style="width:100%; margin-top:6px;"></textarea>
+                            </div>
+                            <button class="btn btn-primary btn-sm" @click="savePerson" style="margin-bottom:18px;">保存档案</button>
+
+                            <h4 style="font-size:13px; color:#94a3b8;">出现过的场合</h4>
+                            <table style="margin-bottom:18px;">
+                                <thead><tr><th>会话</th><th>发言数</th><th>最近出现</th></tr></thead>
+                                <tbody>
+                                    <tr v-for="s in personDetail.sessions" :key="s.umo">
+                                        <td style="font-family:monospace; font-size:12px;">{{ s.umo }}</td>
+                                        <td>{{ s.msg_count }}</td>
+                                        <td style="font-size:12px; color:#94a3b8;">{{ formatTs(s.last_seen) }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <h4 style="font-size:13px; color:#94a3b8;">关于他的长期认知</h4>
+                                <button class="btn btn-ghost btn-sm" @click="addPersonMemory">+ 添加</button>
+                            </div>
+                            <p style="color:#94a3b8; font-size:12px; margin:6px 0 10px;">
+                                标「私聊」的条目在群聊场合不会当众展示正文——她心里知道，但不会点破。
+                            </p>
+                            <table>
+                                <thead><tr><th>内容</th><th>来源</th><th style="text-align:right;">操作</th></tr></thead>
+                                <tbody>
+                                    <tr v-for="m in personDetail.memories" :key="m.id">
+                                        <td>{{ m.text }}</td>
+                                        <td><span class="tag" :class="m.scope === 'private' ? 'tag-l3' : 'tag-l1'">
+                                            {{ m.scope === 'private' ? '私聊' : '公开' }}</span></td>
+                                        <td style="text-align:right;">
+                                            <button class="btn btn-danger btn-sm" @click="removePersonMemory(m.id)">删除</button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                                                  
+                    <div v-if="currentTab === 'tools'">
+                        <p style="color:#94a3b8; font-size:12px; margin:0 0 10px;">
+                            这是<b>自动读出来的</b>：装了带工具的新插件，它的工具就出现在这里，
+                            <b>不用去代码里加</b>。数据源：{{ toolsSource || '…' }}。
+                            「来源」一列标出它来自哪个插件、还是框架自带。
+                            <span v-if="toolsOrphans.length">
+                                <br>⚠️ 下面这些名字写了用法、但已经不在工具表里，
+                                <b>进提示词时会被跳过</b>：<code>{{ toolsOrphans.join('、') }}</code>
+                            </span>
+                        </p>
+                        <table>
+                            <thead><tr>
+                                <th>工具名</th><th>自带说明</th><th>来源</th>
+                                <th>我写的用法</th><th style="text-align:right;">操作</th>
+                            </tr></thead>
+                            <tbody>
+                                <tr v-for="t in toolsList" :key="t.name">
+                                    <td style="font-family:monospace; font-size:12px; font-weight:700;">
+                                        {{ t.name }}<span v-if="!t.active" class="tag tag-l3" style="margin-left:6px;">已停用</span>
+                                    </td>
+                                    <td style="font-size:12px; color:#94a3b8; max-width:340px;">{{ t.description || '（自带说明为空）' }}</td>
+                                    <td style="font-size:11px; color:#94a3b8;">{{ t.source || '—' }}</td>
+                                    <td style="font-size:12px; max-width:260px;">{{ t.note || '（只用自带说明）' }}</td>
+                                    <td style="text-align:right;">
+                                        <button class="btn btn-ghost btn-sm" @click="editToolNote(t)">写用法</button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <p v-if="!toolsList.length" style="color:#94a3b8; font-size:12px; text-align:center; padding:20px;">
+                            没读到任何工具（数据源：{{ toolsSource || '未知' }}）。<br>
+                            如果显示「枚举失败」，去看日志里的报错 —— 不要当成"她没有工具"。
+                        </p>
+                    </div>
+
+                                                       
+                                                                   
+                                                                         
+                                                     
+                    <div v-if="currentTab === 'worldbook'">
+                        <p class="wb-hint">
+                            世界书是<b>全局</b>的：同一条在私聊和群里都成立（这正是它和「认知管理」的分工）。
+                            关键词<b>留空</b>的条目走语义自动兜底。点条目标题展开编辑。
+                            <span v-if="!wbConfig.enabled" style="color:#dc2626;">
+                                ⚠️ 总开关（配置项 worldbook_enabled）现在是<b>关</b>的 —— 存进去也不会注入。
+                            </span>
+                        </p>
+                        <div class="wb-toolbar">
+                            <button class="btn btn-primary btn-sm" @click="addWorldbook">+ 新建条目</button>
+                            <button class="btn btn-ghost btn-sm" @click="fetchWorldbook">刷新</button>
+                            <span class="wb-count">{{ wbList.length }} 条</span>
+                        </div>
+
+                        <div v-for="c in wbCards" :key="c.id"
+                             class="wb-card"
+                             :class="{'wb-card-open': wbIsOpen(c), 'wb-card-off': !c.enabled}">
+                                                                   
+                            <div class="wb-card-head" @click="toggleWbCard(c)">
+                                <span class="wb-caret">{{ wbIsOpen(c) ? '▾' : '▸' }}</span>
+                                <span class="wb-kill" :class="{off: !c.enabled}"
+                                      :title="c.enabled ? '停用这条' : '启用这条'"
+                                      @click.stop="toggleWorldbook(c)">◉</span>
+                                <span class="wb-name">{{ c.title || (c.text || '').slice(0, 24) || '（无备注）' }}</span>
+                                <span class="wb-sum">{{ wbStateLabel(c) }}</span>
+                                <span class="wb-sum">{{ ({core: '合约与人设后', l3: '生活背景', person: '人物档案后', turn: '当前阶段后'})[c.position] || '生活背景' }}</span>
+                                <span class="wb-sum" title="插入优先级 order">Ord {{ c.order_value }}</span>
+                                <span class="wb-sum" title="触发概率">Trig {{ c.probability }}%</span>
+                                <span v-if="c.tokens" class="wb-sum wb-sum-tok" title="正文的 token 估算">≈{{ c.tokens }}</span>
+                                <span class="wb-del" title="删除这条" @click.stop="deleteWorldbook(c)">✕</span>
+                            </div>
+
+                                                                   
+                            <div v-if="wbIsOpen(c)" class="wb-card-body">
+                                                                 
+                                <div class="wb-row wb-head-row">
+                                    <textarea class="wb-title" rows="1" v-model="wbEdit.title"
+                                              placeholder="备注标题（只给你看，不进提示词）"></textarea>
+                                    <select class="wb-state" v-model="wbState" title="条目状态">
+                                        <option value="normal">🟢 普通</option>
+                                        <option value="constant">🔵 常驻</option>
+                                        <option value="vectorized">🔗 语义</option>
+                                    </select>
+                                    <label class="wb-mini">落点
+                                        <select v-model="wbEdit.position" style="width:150px;" title="光谱上下文的固定位置，不是聊天深度；触发和扫描窗口独立设置。">
+                                            <option value="l3">生活背景块内</option>
+                                            <option value="core">合约 + 人设旁</option>
+                                            <option value="person">当前人物档案后</option>
+                                            <option value="turn">当前阶段后</option>
+                                        </select>
+                                    </label>
+                                    <label class="wb-mini">Order
+                                        <input type="number" class="wb-num-in" v-model.number="wbEdit.order_value"></label>
+                                    <label class="wb-mini">Trigger %
+                                        <input type="number" class="wb-num-in" min="0" max="100"
+                                               :disabled="!wbUseProb" v-model.number="wbEdit.probability"></label>
+                                </div>
+
+                                                                        
+                                <div class="wb-row">
+                                    <div class="wb-col wb-f1">
+                                        <small>主关键词（逗号分隔；留空 = 语义自动兜底）</small>
+                                        <textarea rows="1" v-model="wbEdit.keys" placeholder="例：身世, 小时候"></textarea>
+                                    </div>
+                                    <div class="wb-col wb-fauto">
+                                        <small>次关键词逻辑</small>
+                                        <select v-model="wbEdit.selective_logic">
+                                            <option value="and_any">任一命中 AND ANY</option>
+                                            <option value="and_all">全部命中 AND ALL</option>
+                                            <option value="not_all">并非全部命中 NOT ALL</option>
+                                            <option value="not_any">一个都不命中 NOT ANY</option>
+                                        </select>
+                                    </div>
+                                    <div class="wb-col wb-f1">
+                                        <small>次关键词（可选过滤；留空 = 不设限）</small>
+                                        <textarea rows="1" v-model="wbEdit.secondary" placeholder="例：海, 家"></textarea>
+                                    </div>
+                                </div>
+
+                                                                       
+                                                                                     
+                                <div class="wb-row">
+                                    <div class="wb-col wb-f1">
+                                        <small>扫描深度（0 = 用全局 {{ wbConfig.scan_depth }}）</small>
+                                        <input type="number" min="0" v-model.number="wbEdit.scan_depth">
+                                    </div>
+                                    <div class="wb-col wb-f1">
+                                        <small>区分大小写</small>
+                                        <select v-model.number="wbEdit.case_sensitive">
+                                            <option :value="0">否</option><option :value="1">是</option>
+                                        </select>
+                                    </div>
+                                    <div class="wb-col wb-f1">
+                                        <small>全词匹配</small>
+                                        <select v-model.number="wbEdit.match_whole_words">
+                                            <option :value="0">否</option><option :value="1">是</option>
+                                        </select>
+                                    </div>
+                                    <div class="wb-col wb-f1">
+                                        <small>组内按命中数取胜</small>
+                                        <select v-model.number="wbEdit.use_group_scoring">
+                                            <option :value="0">否</option><option :value="1">是</option>
+                                        </select>
+                                    </div>
+                                    <div class="wb-col wb-f1">
+                                        <small>关键词当正则</small>
+                                        <select v-model.number="wbEdit.use_regex">
+                                            <option :value="0">否</option><option :value="1">是</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                                               
+                                <div class="wb-content-head">
+                                    <small>正文（命中后注入给她的内容）</small>
+                                    <span class="wb-tok">Tokens: ≈{{ wbEditTokens }}</span>
+                                    <span class="wb-checks">
+                                        <label class="wb-mini"><input type="checkbox" :true-value="1" :false-value="0" v-model="wbEdit.exclude_recursion"> 非递归可激活</label>
+                                        <label class="wb-mini"><input type="checkbox" :true-value="1" :false-value="0" v-model="wbEdit.prevent_recursion"> 阻止进一步递归</label>
+                                        <label class="wb-mini"><input type="checkbox" :true-value="1" :false-value="0" v-model="wbEdit.delay_until_recursion"> 延迟到递归</label>
+                                        <label class="wb-mini"><input type="checkbox" :true-value="1" :false-value="0" v-model="wbEdit.ignore_budget"> 忽略预算</label>
+                                    </span>
+                                </div>
+                                <textarea rows="8" v-model="wbEdit.text"
+                                          placeholder="例：我从小在海边长大，家里人叫我阿棠。"></textarea>
+
+                                                       
+                                <div class="wb-row" style="margin-top:12px;">
+                                    <div class="wb-col wb-f4">
+                                        <div class="wb-content-head" style="margin-bottom:5px;">
+                                            <small>互斥组（同名的只出一条）</small>
+                                            <label class="wb-mini" style="margin-left:auto;">
+                                                <input type="checkbox" :true-value="1" :false-value="0" v-model="wbEdit.prioritize">
+                                                优先（组内按 order 取胜）
+                                            </label>
+                                        </div>
+                                        <input type="text" v-model="wbEdit.group_name" placeholder="留空 = 不属于任何组">
+                                    </div>
+                                    <div class="wb-col wb-f2">
+                                        <small>组内权重</small>
+                                        <input type="number" min="0" step="0.1" v-model.number="wbEdit.group_weight">
+                                    </div>
+                                    <div class="wb-col wb-f2">
+                                        <small>粘着 Sticky</small>
+                                        <input type="number" min="0" placeholder="不粘着" v-model.number="wbEdit.sticky">
+                                    </div>
+                                    <div class="wb-col wb-f2">
+                                        <small>冷却 Cooldown</small>
+                                        <input type="number" min="0" placeholder="不冷却" v-model.number="wbEdit.cooldown">
+                                    </div>
+                                    <div class="wb-col wb-f2">
+                                        <small>延迟 Delay</small>
+                                        <input type="number" min="0" placeholder="不延迟" v-model.number="wbEdit.delay">
+                                    </div>
+                                </div>
+
+                                                                                         
+                                <div class="wb-bottom">
+                                    <label class="wb-mini">
+                                        <input type="checkbox" :true-value="1" :false-value="0" v-model="wbEdit.selective">
+                                        校验次关键词 Selective</label>
+                                    <label class="wb-mini">
+                                        <input type="checkbox" v-model="wbUseProb">
+                                        使用概率（不勾 = 必中）</label>
+                                    <label class="wb-mini">
+                                        <input type="checkbox" :true-value="1" :false-value="0" v-model="wbEdit.enabled">
+                                        这条启用</label>
+                                    <span class="wb-spacer"></span>
+                                    <button class="btn btn-primary btn-sm" @click="saveWorldbook">保存</button>
+                                    <button class="btn btn-ghost btn-sm" @click="cancelWorldbook">取消</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <p v-if="!wbList.length && !wbEdit" class="wb-empty">
+                            还没有条目。点「新建条目」补一条身世 / 世界观 / 规矩。
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+                                              
+        <div v-if="dialog" class="modal-mask" @click.self="closeAndCancel">
+            <div class="modal-card">
+                <h3>{{ dialog.title }}</h3>
+                <div v-if="dialog.hint" class="modal-hint">{{ dialog.hint }}</div>
+                <textarea v-if="dialog.kind === 'text'" v-model="dialog.text" rows="4"
+                          :placeholder="dialog.placeholder || ''"></textarea>
+                <div v-if="dialog.kind === 'confirm'" class="modal-hint" style="margin:0;">{{ dialog.message }}</div>
+                <div class="modal-actions">
+                    <button class="btn btn-ghost" @click="closeAndCancel">取消</button>
+                    <button class="btn" :class="dialog.danger ? 'btn-danger' : 'btn-primary'"
+                            @click="confirmDialog">{{ dialog.confirmText || '确定' }}</button>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="toast" class="toast" :class="{err: toastIsError}">{{ toast }}</div>
+    </div>
+
+    <script>
+// 面板交互：读取后端数据，将编辑结果提交到对应接口，并更新当前视图。
+
+        const { createApp, ref, onMounted, watch, computed } = Vue;
+
+        createApp({
+            setup() {
+                const initialized = ref(false);
+                const statusMsg = ref('探测通信桥...');
+                const fatalError = ref(null);
+                const overview = ref({});
+                const umos = ref([]);
+                const currentTab = ref('intents');
+                const filterUmo = ref('');
+                const showHistory = ref(false);
+                const dataList = ref([]);
+                                                      
+                                                                        
+                const sourceOpen = ref({});
+                const sourceCache = ref({});
+                                                             
+                                           
+                const l3 = ref({ continuity: '', volatile: [], willingness: 0.5, plan: {} });
+                                               
+                const personDetail = ref(null);
+
+                let bridge = null;
+
+                const stats = [
+                    { label: '活跃承诺', key: 'intents', level: 'L2', tagClass: 'tag-l2', color: '#2563eb' },
+                    { label: '消息待投', key: 'pending', level: 'L2', tagClass: 'tag-l2', color: '#ea580c' },
+                    { label: '长期认知', key: 'memories', level: 'L3+', tagClass: 'tag-l3', color: '#4f46e5' },
+                    { label: '叙事轨迹', key: 'entries', level: 'L1', tagClass: 'tag-l1', color: '#7c3aed' }
+                ];
+
+                const tabs = [
+                    { id: 'intents', label: '任务计划 (L2)' },
+                    { id: 'pending', label: '消息队列 (L2)' },
+                    { id: 'memories', label: '认知管理 (L3+)' },
+                    { id: 'entries', label: '叙事日志 (L1)' },
+                    { id: 'persons', label: '人物档案 (群像)' },
+                    { id: 'lives', label: '生活线' },
+                    { id: 'director', label: '导演 (Drama)' },
+                    { id: 'tools', label: '工具' },
+                    { id: 'worldbook', label: '世界书' }
+                ];
+
+                                    
+                                                                   
+                                                        
+                const dialog = ref(null);
+                const toast = ref('');
+                const toastIsError = ref(false);
+                let toastTimer = null;
+
+                const showToast = (msg, isErr) => {
+                    toast.value = msg;
+                    toastIsError.value = !!isErr;
+                    if (toastTimer) clearTimeout(toastTimer);
+                    toastTimer = setTimeout(() => { toast.value = ''; }, 2600);
+                };
+
+                                                                                                      
+                const askText = (opts) => new Promise((resolve) => {
+                    dialog.value = { kind: 'text', danger: false, ...opts, text: opts.value ?? '', resolve };
+                });
+                                                                                          
+                const askConfirm = (opts) => new Promise((resolve) => {
+                    dialog.value = { kind: 'confirm', danger: true, ...opts, resolve };
+                });
+
+                const confirmDialog = () => {
+                    const d = dialog.value;
+                    if (!d) return;
+                    dialog.value = null;
+                    if (d.kind === 'text') d.resolve(d.text);
+                    else d.resolve(true);
+                };
+                                                         
+                const closeAndCancel = () => {
+                    const d = dialog.value;
+                    dialog.value = null;
+                    if (d) d.resolve(d.kind === 'text' ? null : false);
+                };
+
+                const api = {
+                    get: (path, p) => bridge.apiGet(path, p),
+                    post: (path, b) => bridge.apiPost(path, b)
+                };
+
+                const refresh = async () => {
+                    try {
+                                                                      
+                                                          
+                        const [resO, resU] = await Promise.all([api.get('page/overview'), api.get('page/umos')]);
+                        overview.value = (resO && resO.status === 'ok' && resO.data) || resO || {counts:{}};
+                        umos.value = Array.isArray(resU) ? resU : (resU && resU.status === 'ok' ? resU.data : []);
+                        await fetchData();
+                        if (filterUmo.value) await fetchL3();
+                    } catch (e) { console.error(e); }
+                };
+
+                const fetchData = async () => {
+                                                    
+                                                      
+                    if (currentTab.value === 'lives') {
+                        await fetchLives();
+                        return;
+                    }
+                                                         
+                    if (currentTab.value === 'director') {
+                        await fetchDirector();
+                        return;
+                    }
+                                                   
+                    if (currentTab.value === 'tools') {
+                        await fetchTools();
+                        return;
+                    }
+                                                         
+                    if (currentTab.value === 'worldbook') {
+                        await fetchWorldbook();
+                        return;
+                    }
+                    const params = { umo: filterUmo.value, limit: 100, all: showHistory.value ? '1' : '0' };
+                    const res = await api.get(`page/${currentTab.value}`, params);
+                    const items = (res && res.status === 'ok' && res.data && res.data.items)
+                        || (res && Array.isArray(res.items) && res.items)
+                        || []
+                    ;
+                    dataList.value = items;
+                };
+
+                                         
+                                                                
+                                                   
+                const toolsList = ref([]);
+                const toolsSource = ref('');
+                const toolsOrphans = ref([]);
+
+                const fetchTools = async () => {
+                    const r = await api.get('page/tools');
+                    const d = (r && r.status === 'ok' && r.data) || r || {};
+                    toolsList.value = d.tools || [];
+                    toolsSource.value = d.source || '';
+                    toolsOrphans.value = d.notes_orphan || [];
+                };
+
+                const editToolNote = async (t) => {
+                                                                      
+                                                                 
+                    const v = await askText({
+                        title: `写 ${t.name} 的用法`,
+                        hint: '什么时候该用这个工具。留空 = 删掉这条，回到只用它自带的说明。',
+                        value: t.note || '',
+                        placeholder: '例：别人让我推歌、点歌、找歌时',
+                        confirmText: '保存'
+                    });
+                    if (v === null) return;
+                    if (await postOr('page/tools/note', { name: t.name, note: v }, '已保存')) {
+                        await fetchTools();
+                    }
+                };
+
+                                      
+                                                    
+                                                           
+                                                           
+                                            
+                const wbList = ref([]);
+                const wbConfig = ref({});
+                const wbEdit = ref(null);                                
+                const wbUseProb = ref(false);                                           
+
+                                                        
+                const wbBlank = () => ({
+                    id: 0, title: '', text: '', keys: '', secondary: '',
+                    selective: 0, selective_logic: 'and_any', constant: 0,
+                    order_value: 100, case_sensitive: 0, match_whole_words: 0,
+                    use_regex: 0, probability: 100, group_name: '', group_weight: 1,
+                    use_group_scoring: 0, prioritize: 0, vectorized: 0,
+                    ignore_budget: 0, sticky: 0, cooldown: 0, delay: 0,
+                    scan_depth: 0, exclude_recursion: 0, prevent_recursion: 0,
+                    delay_until_recursion: 0, position: 'l3', enabled: 1
+                });
+
+                                               
+                const wbCards = computed(() => {
+                    const e = wbEdit.value;
+                    return (e && !e.id) ? [e, ...wbList.value] : wbList.value;
+                });
+                const wbIsOpen = (c) => !!(wbEdit.value && c.id === wbEdit.value.id);
+
+                const toggleWbCard = (c) => {
+                    if (wbIsOpen(c)) { wbEdit.value = null; return; }
+                    wbEdit.value = Object.assign(wbBlank(), c);
+                    wbUseProb.value = Number(c.probability) < 100;
+                };
+
+                                                                           
+                const wbStateValue = (c) => c.constant ? 'constant' : (c.vectorized ? 'vectorized' : 'normal');
+                const wbStateLabel = (c) => ({ constant: '🔵 常驻', vectorized: '🔗 语义' }[wbStateValue(c)] || '🟢 普通');
+                const wbState = computed({
+                    get: () => wbEdit.value ? wbStateValue(wbEdit.value) : 'normal',
+                    set: (v) => {
+                        const f = wbEdit.value;
+                        if (!f) return;
+                        f.constant = v === 'constant' ? 1 : 0;
+                        f.vectorized = v === 'vectorized' ? 1 : 0;
+                    }
+                });
+
+                                                         
+                                                     
+                                                                     
+                const wbEstTokens = (s) => {
+                    const chars = Array.from(String(s == null ? '' : s));
+                    if (!chars.length) return 0;
+                    const cjk = chars.filter(c => /[\u3400-\u9FFF\uF900-\uFAFF\u3040-\u30FF\uAC00-\uD7AF]/.test(c)).length;
+                    return cjk + Math.floor((chars.length - cjk + 3) / 4);
+                };
+                const wbEditTokens = computed(() => wbEdit.value ? wbEstTokens(wbEdit.value.text) : 0);
+
+                const fetchWorldbook = async () => {
+                    try {
+                        const r = await api.get('page/worldbook/list');
+                                                          
+                        const d = (r && r.status === 'ok' && r.data) || r || {};
+                        wbList.value = d.items || [];
+                        wbConfig.value = d.config || {};
+                    } catch (e) {
+                        wbList.value = [];
+                        showToast('读取世界书失败：' + (e?.message || e), true);
+                    }
+                };
+
+                const addWorldbook = () => {
+                    wbEdit.value = wbBlank();                            
+                    wbUseProb.value = false;
+                };
+                const cancelWorldbook = () => { wbEdit.value = null; };
+
+                const saveWorldbook = async () => {
+                    const f = wbEdit.value;
+                    if (!f) return;
+                    if (!String(f.text || '').trim()) return showToast('正文不能为空', true);
+                                                               
+                    const payload = Object.assign({}, f, {
+                        probability: wbUseProb.value ? f.probability : 100
+                    });
+                    if (await postOr('page/worldbook/upsert', payload, '已保存')) {
+                        wbEdit.value = null;
+                        await fetchWorldbook();
+                    }
+                };
+
+                const deleteWorldbook = async (c) => {
+                    if (!c.id) { wbEdit.value = null; return; }                  
+                    const ok = await askConfirm({
+                        title: '删除条目',
+                        message: `删除「${c.title || (c.text || '').slice(0, 20) || '这条'}」？`
+                               + '它的定时状态与向量会一并删掉，不可撤销。',
+                        confirmText: '删除'
+                    });
+                    if (!ok) return;
+                    if (await postOr('page/worldbook/delete', { id: c.id }, '已删除')) {
+                        if (wbIsOpen(c)) wbEdit.value = null;
+                        await fetchWorldbook();
+                    }
+                };
+
+                const toggleWorldbook = async (c) => {
+                    if (!c.id) return;
+                    await postOr('page/worldbook/toggle',
+                        { id: c.id, enabled: c.enabled ? 0 : 1 }, '已切换');
+                    await fetchWorldbook();
+                };
+
+                                                   
+                                       
+                const switchTab = (id) => {
+                    currentTab.value = id;
+                    personDetail.value = null;
+                    lifeDetail.value = null;
+                                                 
+                                    
+                    wbEdit.value = null;
+                    wbUseProb.value = false;
+                };
+
+                                 
+                                            
+                                                           
+                const lifeStateText = ref('');                    
+                const lifeOwner = ref({});                         
+                const lifePlanText = ref('');                 
+                const lifeList = ref([]);
+                const lifeDetail = ref(null);
+                const lifeCurrent = ref('');
+
+                const fetchLives = async () => {
+                    try {
+                        const res = await api.get('page/lives', { limit: 100 });
+                                                                     
+                                                                               
+                                                      
+                        const d = (res && res.status === 'ok' && res.data) || res || {};
+                        lifeList.value = d.lives || [];
+                        lifeCurrent.value = d.current || '';
+                                                             
+                                                  
+                        await fetchLifeState();
+                    } catch (e) {
+                        lifeList.value = [];
+                        showToast('读取生活线失败：' + (e?.message || e), true);
+                    }
+                };
+
+                const openLife = async (lifeId) => {
+                    try {
+                        const res = await api.get('page/lives/detail', { life_id: lifeId });
+                                                       
+                        const d = (res && res.status === 'ok' && res.data) || res || {};
+                        if (!d.life) { showToast('读取失败', true); return; }
+                        lifeDetail.value = d;
+                    } catch (e) { showToast('读取失败：' + (e?.message || e), true); }
+                };
+
+                                                         
+                  
+                                                                 
+                                                            
+                                                   
+                                                   
+                                  
+                const lifeEdit = ref(null);                                
+
+                const openLifeEdit = (l) => {
+                    lifeEdit.value = {
+                        life_id: l.life_id,
+                        kind: l.kind || 'home',
+                        title: l.title || '',
+                        summary: l.summary || '',
+                        with_who: l.with_who || '',
+                        started_at: localISO(l.started_at),
+                        ended_at: l.ended_at ? localISO(l.ended_at) : '',
+                    };
+                };
+                const cancelLifeEdit = () => { lifeEdit.value = null; };
+
+                const refreshLifeDetail = async () => {
+                    if (!lifeDetail.value) return;
+                    await openLife(lifeDetail.value.life.life_id);
+                };
+
+                const saveLifeEdit = async () => {
+                    const f = lifeEdit.value;
+                    if (!f) return;
+                    if (await postOr('page/lives/update', f, '已保存')) {
+                        lifeEdit.value = null;
+                        await fetchLives();
+                        if (lifeDetail.value) await refreshLifeDetail();
+                    }
+                };
+
+                const deleteLife = async (l) => {
+                    const ok = await askConfirm({
+                        title: '删除这一段生活',
+                        message: `删除「${l.title || lifeKindLabel(l.kind)}」？`,
+                        confirmText: '删除'
+                    });
+                    if (!ok) return;
+                    if (await postOr('page/lives/delete', { life_id: l.life_id },
+                                     '已删除（段里的往来与内心戏一并删掉）')) {
+                        lifeDetail.value = null;
+                        await fetchLives();
+                    }
+                };
+
+                const unlockLife = async () => {
+                    const ok = await askConfirm({
+                        title: '解除外出锁',
+                        message: '把主线所有权还给她自己。若她正在外面，'
+                               + '会顺手关掉当前段、开一段在家的。',
+                        confirmText: '归家'
+                    });
+                    if (!ok) return;
+                    if (await postOr('page/lives/unlock', {}, '已归家')) {
+                        await fetchLives();
+                        await fetchLifeState();
+                        if (lifeDetail.value) await refreshLifeDetail();
+                    }
+                };
+
+                                     
+                                                      
+                const editLifeEntry = async (e) => {
+                    const text = await askText({
+                        title: '修正这条记录', value: e.text, confirmText: '保存'
+                    });
+                    if (text === null) return;
+                    if (await postOr('page/entries/update', { id: e.id, text }, '已修正')) {
+                        await refreshLifeDetail();
+                    }
+                };
+
+                const deleteLifeEntry = async (e) => {
+                    const ok = await askConfirm({
+                        title: '删除这条记录',
+                        message: '删掉这一条往来 / 内心戏？不可撤销。',
+                        confirmText: '删除'
+                    });
+                    if (!ok) return;
+                    if (await postOr('page/entries/delete', { id: e.id }, '已删除')) {
+                        await refreshLifeDetail();
+                    }
+                };
+
+                                             
+                              
+                const editLifeTitle = async (l) => {
+                    const title = await askText({
+                        title: '编辑这段生活的标题',
+                        hint: '时间段：' + formatTs(l.started_at) + ' → '
+                              + (l.ended_at ? formatTs(l.ended_at) : '进行中'),
+                        value: l.title || '',
+                        placeholder: '例如：和朋友骑车去小吃摊的那晚',
+                        confirmText: '保存',
+                    });
+                    if (title === null) return;
+                    if (await postOr('page/lives/update', {
+                        life_id: l.life_id, title: title, summary: l.summary || '',
+                    }, '已保存')) {
+                        await fetchLives();
+                        if (lifeDetail.value) await openLife(l.life_id);
+                    }
+                };
+
+                const lifeKindLabel = (k) => ({ home: '在家', outing: '外出', legacy: '往昔' }[k] || k);
+
+                                           
+                                             
+                                                       
+                                            
+                const drState = ref({});
+                const drStorylets = ref([]);
+                const drFires = ref([]);
+                const drThreads = ref([]);
+                const drSub = ref('storylets');           
+
+                const fetchDirector = async () => {
+                    try {
+                        const [rS, rL, rF, rT] = await Promise.all([
+                            api.get('page/director/state'),
+                            api.get('page/director/storylets'),
+                            api.get('page/director/fires', { limit: 100 }),
+                            api.get('page/director/threads'),
+                        ]);
+                        const pick = (r) => (r && r.status === 'ok' && r.data) || r || {};
+                        drState.value = pick(rS);
+                        drStorylets.value = pick(rL).storylets || [];
+                        drFires.value = pick(rF).fires || [];
+                        drThreads.value = pick(rT).threads || [];
+                    } catch (e) {
+                        showToast('读取导演数据失败：' + (e?.message || e), true);
+                    }
+                };
+
+                const toggleStorylet = async (st) => {
+                    await postOr('page/director/storylets/toggle',
+                        { sid: st.sid, enabled: !st.enabled }, '已切换');
+                    await fetchDirector();
+                };
+
+                const drSchemaField = async (st, field) => {
+                    const cur = field === 'narrative'
+                        ? (() => { try { return (JSON.parse(st.narrative) || []).join('\n'); }
+                                   catch (e) { return st.narrative; } })()
+                        : (() => { try { return JSON.stringify(JSON.parse(st[field] || '{}'), null, 2); }
+                                   catch (e) { return st[field]; } })();
+                    const v = await askText({
+                        title: `编辑 ${st.sid} 的 ${field}`,
+                        hint: field === 'narrative' ? '一行一段正文' : '必须是合法 JSON',
+                        value: cur,
+                        confirmText: '保存',
+                    });
+                    if (v === null || v === undefined) return;
+                    let payload = v;
+                    if (field === 'narrative') {
+                        payload = JSON.stringify(v.split('\n').map(s => s.trim()).filter(Boolean));
+                    } else {
+                        try { JSON.parse(v); } catch (e) {
+                            showToast(`${field} 不是合法 JSON：${e.message}`, true); return;
+                        }
+                    }
+                    await postOr('page/director/storylets/upsert',
+                        { sid: st.sid, [field]: payload }, '已保存');
+                    await fetchDirector();
+                };
+
+                const lifeDur = (l) => {
+                    const end = l.ended_at || (Date.now() / 1000);
+                    const mins = Math.max(0, Math.round((end - l.started_at) / 60));
+                    if (mins < 60) return mins + ' 分钟';
+                    return (mins / 60).toFixed(1) + ' 小时';
+                };
+
+                                
+                                                     
+                                            
+                const openPerson = async (personId) => {
+                    try {
+                        const res = await api.get('page/persons/detail', { person_id: personId });
+                        const obj = (res && res.status === 'ok' && res.data) || res || {};
+                        if (!obj.person) { showToast('读取人物档案失败', true); return; }
+                        personDetail.value = {
+                            person: { ...obj.person },
+                            aliases: obj.aliases || [],
+                            sessions: obj.sessions || [],
+                            memories: obj.memories || [],
+                        };
+                    } catch (e) { showToast('读取失败：' + (e?.message || e), true); }
+                };
+
+                const savePerson = async () => {
+                    const p = personDetail.value?.person;
+                    if (!p) return;
+                    await postOr('page/persons/update', {
+                        person_id: p.person_id,
+                        name: p.name, impression: p.impression,
+                        affinity: Number(p.affinity), trust: Number(p.trust),
+                    }, '已保存');
+                };
+
+                const removePerson = async (p) => {
+                    const yes = await askConfirm({
+                        title: '删除人物档案',
+                        message: `将删除「${p.name || p.person_id}」的档案，连同他的长期认知与出现记录。`
+                                 + `\n（不影响已有的会话记录。）`,
+                        confirmText: '删除',
+                    });
+                    if (!yes) return;
+                    if (await postOr('page/persons/delete', { person_id: p.person_id }, '已删除')) {
+                        personDetail.value = null;
+                        await fetchData();
+                    }
+                };
+
+                const addPersonMemory = async () => {
+                    const p = personDetail.value?.person;
+                    if (!p) return;
+                    const text = await askText({
+                        title: '添加关于他的认知',
+                        hint: '记下她应该长期记得的、关于这个人的事实。',
+                        placeholder: '例如：他养了一只叫豆豆的猫',
+                    });
+                    if (!text) return;
+                    const scope = await askConfirm({
+                        title: '这条算私密还是公开？',
+                        message: '「私密」= 只在私聊这类私下场合可以提起，群聊里她知道但不当众点破。\n「公开」= 任何场合都可以自然引用。',
+                        confirmText: '私密', danger: false,
+                    }) ? 'private' : 'public';
+                    if (await postOr('page/persons/memories/add',
+                        { person_id: p.person_id, text, scope }, '已添加')) {
+                        await openPerson(p.person_id);
+                    }
+                };
+
+                const removePersonMemory = async (id) => {
+                    const p = personDetail.value?.person;
+                    if (!p) return;
+                    if (await postOr('page/persons/memories/delete', { id }, '已删除')) {
+                        await openPerson(p.person_id);
+                    }
+                };
+
+                const fetchL3 = async () => {
+                    const res = await api.get('page/l3/state', { umo: filterUmo.value });
+                    const obj = (res && res.status === 'ok' && res.data) || res || {};
+                    l3.value = obj;
+                                                    
+                    await fetchLifeState();
+                };
+
+                                             
+                const fetchLifeState = async () => {
+                    try {
+                        const res = await api.get('page/life/state');
+                                                       
+                        const d = (res && res.status === 'ok' && res.data) || res || {};
+                        lifeStateText.value = d.state || '';
+                        lifePlanText.value = d.plans || '';
+                                                          
+                        lifeOwner.value = d.owner || {};
+                    } catch (e) {                    }
+                };
+
+                                                    
+                const postOr = async (path, body, okMsg) => {
+                    try {
+                        await api.post(path, body);
+                        if (okMsg) showToast(okMsg);
+                        return true;
+                    } catch (e) {
+                        showToast('操作失败：' + (e?.message || e), true);
+                        return false;
+                    }
+                };
+
+                const localISO = (ts) => {
+                    const d = ts instanceof Date ? ts : new Date(ts * 1000);
+                    const p = (n) => String(n).padStart(2, '0');
+                    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+                };
+
+                const saveL3 = async () => {
+                                             
+                                             
+                    const txt = (lifeStateText.value || '').trim();
+                    if (!txt) return showToast("生活主线不能为空", true);
+                    const ok = await postOr('page/life/state/set', { state: txt }, "生活主线已更新");
+                    if (ok) refresh();
+                };
+
+                const resetClock = async () => {
+                    const ok = await askConfirm({
+                        title: "重置叙事时钟",
+                        message: "确定把时钟对齐到此刻吗？这将消除已有的时间流逝记忆。",
+                        confirmText: "重置"
+                    });
+                    if (!ok) return;
+                    if (await postOr('page/l3/reset_clock', { umo: filterUmo.value })) showToast("时钟已对齐");
+                };
+
+                const clearVolatile = async () => {
+                    const ok = await askConfirm({
+                        title: "清空缓冲区",
+                        message: "确定丢弃这些未合流的状态碎片吗？",
+                        confirmText: "清空"
+                    });
+                    if (!ok) return;
+                    await postOr('page/l3/clear_volatile', { umo: filterUmo.value }, "缓冲区已清空");
+                    fetchL3();
+                };
+
+                                    
+                const addMemory = async () => {
+                    const text = await askText({
+                        title: "录入核心认知",
+                        hint: "她应该长期记住关于这个人的什么事实？",
+                        placeholder: "例如：他不喜欢吃芹菜",
+                        confirmText: "记下"
+                    });
+                    if (text && text.trim()) {
+                        await postOr('page/memories/add', { umo: filterUmo.value, text: text.trim() }, "已记下");
+                        fetchData();
+                    }
+                };
+
+                const editMemory = async (m) => {
+                    const text = await askText({ title: "编辑认知", value: m.text, confirmText: "保存" });
+                    if (text !== null && text !== m.text) {
+                        await postOr('page/memories/update', { id: m.id, text, importance: m.importance }, "已保存");
+                        fetchData();
+                    }
+                };
+
+                const updateMemoryImportance = async (m, val) => {
+                    await postOr('page/memories/update', { id: m.id, text: m.text, importance: parseFloat(val) });
+                    fetchData();
+                };
+
+                const deleteMemory = async (id) => {
+                    const ok = await askConfirm({
+                        title: "永久遗忘",
+                        message: "彻底让这段认知消失吗？此操作不可撤销。",
+                        confirmText: "遗忘"
+                    });
+                    if (!ok) return;
+                    await postOr('page/memories/delete', { id }, "已遗忘");
+                    fetchData();
+                };
+
+                                             
+                                            
+                const toggleSources = async (m) => {
+                    const mid = m.id;
+                    sourceOpen.value = { ...sourceOpen.value, [mid]: !sourceOpen.value[mid] };
+                    if (!sourceOpen.value[mid] || sourceCache.value[mid]) return;
+                    try {
+                        const res = await api.get('page/entries/by_ids', {
+                            ids: String(m.source_entry_ids || '').split(',').filter(Boolean).join(',')
+                        });
+                        const d = (res && res.status === 'ok' && res.data) || res || {};
+                        sourceCache.value = { ...sourceCache.value, [mid]: d.items || [] };
+                    } catch (e) {
+                        sourceCache.value = { ...sourceCache.value, [mid]: [] };
+                        showToast('来源读取失败：' + (e?.message || e), true);
+                    }
+                };
+                                                           
+                const sourceCount = (m) => String(m.source_entry_ids || '').split(',').filter(Boolean).length;
+
+                const addIntent = async () => {
+                    const summary = await askText({
+                        title: "手动派发任务",
+                        hint: "给她的未来安排一件事。",
+                        placeholder: "任务摘要",
+                        confirmText: "下一步"
+                    });
+                    if (!summary || !summary.trim()) return;
+                    const due = await askText({
+                        title: "执行时间",
+                        hint: "格式 YYYY-MM-DDTHH:mm:ss",
+                        value: localISO(new Date(Date.now() + 3600000)),
+                        confirmText: "派发"
+                    });
+                    if (!due) return;
+                    await postOr('page/intents/add', { umo: filterUmo.value, summary: summary.trim(), not_before: due }, "已派发");
+                    fetchData();
+                };
+
+                const editIntent = async (i) => {
+                    const summary = await askText({ title: "修正任务摘要", value: i.summary, confirmText: "下一步" });
+                    if (summary === null) return;
+                    const due = await askText({
+                        title: "修正计划时间",
+                        hint: "格式 YYYY-MM-DDTHH:mm:ss",
+                        value: localISO(i.not_before),
+                        confirmText: "保存"
+                    });
+                    if (due === null) return;
+                    await postOr('page/intents/update', { id: i.id, summary, not_before: due }, "已修正");
+                    fetchData();
+                };
+
+                const editPending = async (p) => {
+                    const content = await askText({ title: "修正投递内容", value: p.content, confirmText: "下一步" });
+                    if (content === null) return;
+                    const due = await askText({
+                        title: "修正投递时间",
+                        hint: "格式 YYYY-MM-DDTHH:mm:ss",
+                        value: localISO(p.due_ts),
+                        confirmText: "保存"
+                    });
+                    if (due === null) return;
+                    await postOr('page/pending/update', { id: p.id, content, due_at: due }, "已修正");
+                    fetchData();
+                };
+
+                const editEntry = async (e) => {
+                    const text = await askText({ title: "修正日志文本", value: e.text, confirmText: "保存" });
+                    if (text !== null) {
+                        await postOr('page/entries/update', { id: e.id, text }, "已修正");
+                        fetchData();
+                    }
+                };
+
+                const deleteEntry = async (id) => {
+                    const ok = await askConfirm({
+                        title: "删除轨迹",
+                        message: "彻底删除这条轨迹吗？此操作不可撤销。",
+                        confirmText: "删除"
+                    });
+                    if (!ok) return;
+                    await postOr('page/entries/delete', { id }, "已删除");
+                    fetchData();
+                };
+
+                const cancelIntent = async (id) => {
+                    const ok = await askConfirm({ title: "取消任务承诺", message: "取消该任务承诺？", confirmText: "取消该任务" });
+                    if (!ok) return;
+                    await postOr('page/intents/cancel', { id }, "已取消");
+                    fetchData();
+                };
+
+                const retryPending = async (id) => {
+                    const ok = await askConfirm({ title: "恢复待发", message: "先核对聊天记录：这条消息可能已送达。确认需要重新发送？", confirmText: "恢复待发" });
+                    if (!ok) return;
+                    await postOr('page/pending/update', { id, retry: true }, "已恢复待发");
+                    fetchData();
+                };
+                const cancelPending = async (id) => {
+                    const ok = await askConfirm({ title: "作废消息", message: "作废这条待投递消息？", confirmText: "作废" });
+                    if (!ok) return;
+                    await postOr('page/pending/cancel', { id }, "已作废");
+                    fetchData();
+                };
+
+                const formatTs = (ts) => ts ? new Date(ts * 1000).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-';
+                const formatPlanTime = (iso) => { try { return iso.split('T')[1].substring(0, 5); } catch(e) { return '?'; } };
+
+                const waitBridge = () => {
+                    let attempts = 0;
+                    const check = setInterval(() => {
+                        attempts++;
+                        if (window.AstrBotPluginPage) {
+                            clearInterval(check);
+                            bridge = window.AstrBotPluginPage;
+                            statusMsg.value = '链路已锁定，同步中...';
+                            bridge.ready().then(() => { initialized.value = true; refresh(); });
+                        } else if (attempts > 60) {
+                            clearInterval(check);
+                            fatalError.value = '通信桥建立超时。请确保插件已启用并尝试刷新。';
+                        }
+                    }, 100);
+                };
+
+                onMounted(waitBridge);
+                                                  
+                watch([currentTab, filterUmo, showHistory], () => {
+                    if (personDetail.value) return;
+                    fetchData();
+                });
+                watch(filterUmo, fetchL3);
+
+                return {
+                    initialized, statusMsg, fatalError, overview, umos, currentTab, filterUmo, showHistory,
+                    dataList, l3, stats, tabs,
+                    lifeList, lifeDetail, lifeCurrent, openLife, lifeKindLabel, lifeDur,
+                    lifeStateText, lifePlanText, lifeOwner, fetchLifeState, editLifeTitle,
+                    fetchLives,
+                    lifeEdit, openLifeEdit, cancelLifeEdit, saveLifeEdit,
+                    deleteLife, unlockLife, editLifeEntry, deleteLifeEntry,
+                    dialog, toast, toastIsError, confirmDialog, closeAndCancel,
+                    refresh, formatTs, formatPlanTime, saveL3, resetClock, clearVolatile,
+                    addMemory, editMemory, updateMemoryImportance, deleteMemory,
+                    sourceOpen, sourceCache, toggleSources, sourceCount,
+                    addIntent, editIntent, cancelIntent, editPending, cancelPending, retryPending,
+                    editEntry, deleteEntry,
+                    personDetail, openPerson, savePerson, removePerson,
+                    addPersonMemory, removePersonMemory, switchTab,
+                    drState, drStorylets, drFires, drThreads, drSub,
+                    fetchDirector, toggleStorylet, drSchemaField,
+                    toolsList, toolsSource, toolsOrphans, fetchTools, editToolNote,
+                    wbList, wbConfig, wbEdit, wbCards, wbIsOpen, wbState, wbStateLabel,
+                    wbUseProb, wbEditTokens, toggleWbCard,
+                    fetchWorldbook, addWorldbook, cancelWorldbook,
+                    saveWorldbook, deleteWorldbook, toggleWorldbook
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

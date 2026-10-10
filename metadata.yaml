@@ -1,0 +1,13 @@
+name: astrbot_plugin_spectrum_core
+display_name: 光谱核心 (Spectrum Core)
+author: Akavilos
+version: 0.3.4
+desc: "管理共同生活、人物关系、跨会话记忆与行为；可与棱镜协作形成状态驱动的角色对话，棱镜可选。"
+repo: https://github.com/Akavilos/astrbot_plugin_spectrum_core
+astrbot_version: ">=4.24.0"
+short_desc: "跨会话记忆、共同生活与人物关系"
+tags:
+  - 记忆
+  - 角色扮演
+  - 跨会话
+  - 世界书

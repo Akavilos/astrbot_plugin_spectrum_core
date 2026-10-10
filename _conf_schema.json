@@ -1,0 +1,1452 @@
+{
+  "basic": {
+    "description": "开始使用",
+    "type": "object",
+    "hint": "先启用光谱并选择使用范围即可开始聊天。角色人设和对话模型在 AstrBot 中选择；其余功能可按需要开启。原有设置会自动保留，通常不需要逐项调整。",
+    "items": {
+      "enabled": {
+        "description": "启用光谱核心",
+        "type": "bool",
+        "default": false,
+        "hint": "开启后，光谱负责角色的对话、记忆和生活状态。首次使用先开启此项；关闭后不介入聊天，已有数据保留。"
+      },
+      "scope": {
+        "description": "使用范围",
+        "type": "string",
+        "default": "private",
+        "options": [
+          "private",
+          "all"
+        ],
+        "labels": [
+          "仅私聊",
+          "私聊与群聊"
+        ],
+        "hint": "选择只用于私聊，或同时用于私聊和群聊。群聊主动插话另有开关。"
+      }
+    }
+  },
+  "conversation": {
+    "description": "对话与表达",
+    "type": "object",
+    "hint": "调整近期上下文、生活叙述和工具说明。通常保持默认；角色性格仍由人设与经历决定。",
+    "items": {
+      "isolate_history": {
+        "description": "使用整理后的对话历史",
+        "type": "bool",
+        "default": true,
+        "hint": "开启后，以真实收发记录重新组织上下文，减少反复模仿旧回复。通常保持开启。"
+      },
+      "exchange_limit": {
+        "description": "最近对话保留条数",
+        "type": "int",
+        "default": 12,
+        "hint": "每次回复提供多少条最近真实收发的消息。数值越大，近期上下文越完整，也会增加请求长度。"
+      },
+      "life_style": {
+        "description": "生活叙述风格",
+        "type": "text",
+        "default": "**我的日记体散文。用\"我\"写**，记「上一刻 → 现在」这段时间里我真实经历的事：\n我将会用白描手法完成这篇日记体散文。",
+        "hint": "填写角色记录自身经历的写法，例如“我用简洁的第一人称记录这一段经历”。只调整生活叙述风格，留空使用默认写法。"
+      },
+      "tools_list_max": {
+        "description": "工具清单显示上限",
+        "type": "int",
+        "default": 12,
+        "hint": "每次向角色介绍多少个可用工具。超过上限的工具不会列入本轮说明；安装较多工具插件时可适当提高。"
+      }
+    }
+  },
+  "people": {
+    "description": "人物关系与棱镜",
+    "type": "object",
+    "hint": "管理跨会话身份、私聊信息边界和棱镜提供的主观感受。",
+    "items": {
+      "person_profile_enabled": {
+        "description": "记住人物与关系",
+        "type": "bool",
+        "default": true,
+        "hint": "按平台用户身份统一记录人物、好感和信任，支持跨私聊与群聊识别同一个人。通常保持开启；关闭后关系变化不再累积。"
+      },
+      "person_private_in_group": {
+        "description": "保护私聊内容",
+        "type": "bool",
+        "default": true,
+        "hint": "开启后，群聊中不提供私聊得知的私事。关闭会放宽私聊与群聊之间的记忆共享范围。"
+      },
+      "cross_ref_enabled": {
+        "description": "回忆其他人的相关往来",
+        "type": "bool",
+        "default": true,
+        "hint": "提到已认识的人或共同话题时，回忆其他会话的相关往来，并保留人物、来源和时间。是否说出来由AI决定；这项回忆不需要向量模型。"
+      },
+      "prism_enabled": {
+        "description": "使用棱镜的心情与回忆",
+        "type": "bool",
+        "default": true,
+        "hint": "需要安装并启用棱镜插件。开启后，让角色参考棱镜提供的主观心情与相关回忆；棱镜不可用时仍可使用光谱。"
+      }
+    }
+  },
+  "memory": {
+    "description": "记忆与原文回看",
+    "type": "object",
+    "hint": "关键词记忆可直接使用；按意思查找需要另行配置嵌入模型。增加记忆和原文数量会增加请求长度。",
+    "items": {
+      "enable_fts_memory": {
+        "description": "根据话题查找记忆",
+        "type": "bool",
+        "default": true,
+        "hint": "开启后，根据当前话题查找相关长期记忆。通常保持开启。"
+      },
+      "memory_recent_limit": {
+        "description": "最近记忆条数",
+        "type": "int",
+        "default": 4,
+        "hint": "每次回复固定带入多少条最近保存的长期记忆。设为 0 时不提供这一部分。"
+      },
+      "memory_related_limit": {
+        "description": "相关记忆条数",
+        "type": "int",
+        "default": 8,
+        "hint": "每次回复额外查找多少条与当前话题相关的长期记忆，与最近记忆去重。增加条数会增加请求长度。"
+      },
+      "memory_recall_patterns": {
+        "description": "关键词检索范围",
+        "type": "int",
+        "default": 24,
+        "hint": "从当前话题提取的检索片段数量上限，实际最少为 4。较长的话题可适当提高，通常使用默认值。"
+      },
+      "memory_vector_enabled": {
+        "description": "按意思查找记忆",
+        "type": "bool",
+        "default": true,
+        "hint": "开启后，尝试找回用词不同但意思相近的记忆，补充关键词检索。需要在 AstrBot 配置可用的嵌入模型；没有时仍使用关键词检索。"
+      },
+      "memory_vector_topk": {
+        "description": "语义检索默认候选数",
+        "type": "int",
+        "default": 6,
+        "hint": "语义检索没有指定数量时使用此值。实际召回还受最近记忆和相关记忆条数限制，通常无需调整。"
+      },
+      "memory_origin_enabled": {
+        "description": "回看更早的对话原文",
+        "type": "bool",
+        "default": false,
+        "hint": "开启后，在长期记忆之外提供相关旧对话原话，帮助核对曾经说过的事。不会重复提供已经带入的最近对话。"
+      },
+      "memory_origin_segments": {
+        "description": "旧对话片段数量",
+        "type": "int",
+        "default": 2,
+        "hint": "每次最多提供多少段相关旧对话。仅在回看对话原文开启时生效。"
+      },
+      "memory_origin_radius": {
+        "description": "片段前后补充条数",
+        "type": "int",
+        "default": 2,
+        "hint": "找到一条相关原话后，向前和向后各补充多少条消息。例如填 2 时，一段最多包含命中消息及前后共 4 条消息。"
+      },
+      "memory_origin_segment_chars": {
+        "description": "单段旧对话字数上限",
+        "type": "int",
+        "default": 1500,
+        "hint": "限制每段旧对话的长度，默认 1500 字符。命中的核心消息会保留，周边消息可能截短。"
+      },
+      "memory_origin_vector_enabled": {
+        "description": "按意思查找旧对话",
+        "type": "bool",
+        "default": false,
+        "hint": "回看原文时，用语义检索补充关键词未找到的片段。需要嵌入模型；首次开启会在后台建立旧对话索引，可能增加嵌入请求。"
+      },
+      "memory_origin_vector_topk": {
+        "description": "旧对话语义候选数",
+        "type": "int",
+        "default": 12,
+        "hint": "每次语义检索取回多少条旧消息候选，再按会话和片段数量筛选。仅在旧对话语义检索开启时生效。"
+      }
+    }
+  },
+  "activity": {
+    "description": "主动联系与生活推进",
+    "type": "object",
+    "hint": "普通调度的主动推进与剧情导演的调度设置分开。开启主动功能可能增加后台模型请求；模型自主决定具体内容。",
+    "items": {
+      "l2_commitments_enabled": {
+        "description": "记录并跟进承诺",
+        "type": "bool",
+        "default": false,
+        "hint": "开启后，记录角色明确说出的具体承诺，并在约定时间尝试跟进。可能产生后台模型请求和主动消息。"
+      },
+      "l2_advance_enabled": {
+        "description": "允许独立生活推进",
+        "type": "bool",
+        "default": false,
+        "hint": "普通调度模式下，角色可在聊天安静一段时间后继续自己的生活并决定是否联系他人。使用剧情导演时，请同时查看导演中的主动推进设置。"
+      },
+      "l3_willingness_threshold": {
+        "description": "主动推进意愿门槛",
+        "type": "float",
+        "default": 0.3,
+        "hint": "普通调度模式使用，范围 0～1。门槛越高，主动推进越少；剧情导演使用自己的意愿门槛。"
+      },
+      "advance_idle_minutes": {
+        "description": "主动推进前的安静时间（分钟）",
+        "type": "int",
+        "default": 40,
+        "hint": "普通调度模式下，该会话安静多久后才考虑独立推进。剧情导演使用其单独设置的安静时间。"
+      },
+      "advance_cool_minutes": {
+        "description": "主动推进最短间隔（分钟）",
+        "type": "int",
+        "default": 20,
+        "hint": "普通调度模式下，同一会话两次独立推进之间至少间隔多久。数值越大，后台推进越少。"
+      },
+      "advance_model_override": {
+        "description": "后台使用的模型名称",
+        "type": "string",
+        "default": "",
+        "hint": "留空使用所选提供商的默认模型。需要覆盖时，填写该提供商支持的模型名称；这不是提供商 ID，也不会更换连接地址。"
+      },
+      "poll_seconds": {
+        "description": "后台任务检查间隔（秒）",
+        "type": "int",
+        "default": 10,
+        "hint": "后台多久检查一次到期承诺、睡眠和生活任务。间隔越小，响应到期任务越及时；通常保留默认值。"
+      },
+      "outing_recent_minutes": {
+        "description": "同行者近期联系范围（分钟）",
+        "type": "int",
+        "default": 20,
+        "hint": "角色想与当前会话之外的人外出时，要求最近在此时间内与对方真实联系过。用于减少把同行者认错；调大更宽松。"
+      },
+      "l3_interject_enabled": {
+        "description": "允许主动参与群聊",
+        "type": "bool",
+        "default": false,
+        "hint": "需要使用范围包含群聊。开启后，角色可观察未直接叫自己的群消息，并在意愿达到门槛时插话；可能增加请求与主动消息。"
+      },
+      "l3_interject_threshold": {
+        "description": "群聊插话意愿门槛",
+        "type": "float",
+        "default": 0.6,
+        "hint": "范围 0～1。门槛越高，主动插话越少；仅在允许主动参与群聊时生效。"
+      }
+    }
+  },
+  "sleep": {
+    "description": "睡眠与未读消息",
+    "type": "object",
+    "hint": "角色可以入睡、暂缓回应并在醒来后查看来信。是否入睡由角色决定，这组设置只控制允许与时长。",
+    "items": {
+      "l2_sleep_enabled": {
+        "description": "允许角色睡觉",
+        "type": "bool",
+        "default": true,
+        "hint": "开启后，角色可以选择入睡，睡眠期间暂停常规回应并收集来信，醒来后继续。此项不规定必须在夜间入睡。"
+      },
+      "sleep_min_minutes": {
+        "description": "最短睡眠时间（分钟）",
+        "type": "int",
+        "default": 60,
+        "hint": "角色每次睡眠允许的最短时长。应小于或等于最长睡眠时间。"
+      },
+      "sleep_max_minutes": {
+        "description": "最长睡眠时间（分钟）",
+        "type": "int",
+        "default": 600,
+        "hint": "角色睡眠的最长时长，到达上限后唤醒。默认 600 分钟，即 10 小时。"
+      },
+      "sleep_inbox_enabled": {
+        "description": "醒来后查看睡眠期间的来信",
+        "type": "bool",
+        "default": true,
+        "hint": "开启后，醒来时将未读来信提供给角色，由角色决定是否回复。关闭后醒来清空睡眠收件箱。"
+      }
+    }
+  },
+  "worldbook": {
+    "description": "世界书与背景设定",
+    "type": "object",
+    "hint": "在光谱面板的世界书页面添加设定，再启用此功能。条目的四个插入位置也在那里选择；这里管理触发和篇幅。",
+    "items": {
+      "worldbook_enabled": {
+        "description": "启用世界书",
+        "type": "bool",
+        "default": false,
+        "hint": "为角色提供跨会话通用的背景、人物和世界设定。条目在光谱面板的“世界书”中编辑；常驻条目持续提供，其他条目按条件触发。"
+      },
+      "worldbook_scan_depth": {
+        "description": "触发词回看消息数",
+        "type": "int",
+        "default": 2,
+        "hint": "检查当前消息之外，再回看多少条近期往来中的触发词。0 表示只检查当前消息；此项不控制设定的插入位置。"
+      },
+      "worldbook_max": {
+        "description": "每次最多使用的条目数",
+        "type": "int",
+        "default": 0,
+        "hint": "0 表示不限制条数。仍受世界书篇幅预算限制。"
+      },
+      "worldbook_budget_percent": {
+        "description": "世界书篇幅比例（%）",
+        "type": "int",
+        "default": 25,
+        "hint": "世界书可占用的估算 token 数，占下方参考上下文长度的百分比。默认 25%；数值越大，允许带入的设定越多。0 会使预算接近零，超过 100 使用默认比例。"
+      },
+      "worldbook_context_tokens": {
+        "description": "预算参考上下文长度（token）",
+        "type": "int",
+        "default": 32000,
+        "hint": "用于计算世界书预算，默认 32000；配合 25% 时预算为 8000 token。此项只用于预算估算，不会修改模型本身的上下文上限。"
+      },
+      "worldbook_token_budget": {
+        "description": "世界书篇幅绝对上限（token）",
+        "type": "int",
+        "default": 0,
+        "hint": "0 表示不另设上限。填正数时，世界书预算取比例预算与此值中的较小者。"
+      },
+      "worldbook_recursion": {
+        "description": "允许条目带出其他条目",
+        "type": "bool",
+        "default": false,
+        "hint": "开启后，已触发条目的正文也参与触发词检查，可带出相关设定。通常先保持关闭，确有联动需求再开启。"
+      },
+      "worldbook_max_steps": {
+        "description": "条目联动最多检查轮数",
+        "type": "int",
+        "default": 3,
+        "hint": "仅在条目联动开启时生效，实际最多 10 轮。越大可能带入越多间接相关设定。"
+      },
+      "worldbook_vector_enabled": {
+        "description": "按意思匹配无触发词条目",
+        "type": "bool",
+        "default": false,
+        "hint": "开启后，为没有触发词的条目补充语义匹配。需要世界书总开关和可用的嵌入模型；已有触发词的条目仍按触发规则判断。"
+      }
+    }
+  },
+  "thinking": {
+    "description": "角色自述思考 · 实验功能",
+    "type": "object",
+    "hint": "先开启总开关，再选择对应模型模式。实验功能不保证控制模型原生推理；关闭总开关即可使用普通回复流程。",
+    "items": {
+      "possession_enabled": {
+        "description": "启用角色自述思考（实验）",
+        "type": "bool",
+        "default": true,
+        "hint": "让角色以第一人称写出本轮思考。关闭后，下面两个续写模式均不启用。此功能不能保证关闭模型原生推理。"
+      },
+      "prefill_possession": {
+        "description": "DeepSeek 思考续写模式",
+        "type": "bool",
+        "default": true,
+        "hint": "需要先开启角色自述思考。使用支持前缀续写的 DeepSeek beta 接口时，延续角色的思考开头；不支持时使用普通思考格式。"
+      },
+      "prefill_gemini_closed": {
+        "description": "Gemini 思考续写模式",
+        "type": "bool",
+        "default": true,
+        "hint": "需要先开启角色自述思考。尝试以角色已有思考继续生成；接口拒绝这种消息结构时保留思考材料并调整请求格式。兼容性取决于所用接口。"
+      }
+    }
+  },
+  "director": {
+    "description": "剧情导演 · 调度",
+    "type": "object",
+    "hint": "可选功能。启用后使用这组主动推进设置；剧情素材和故事线在光谱面板编辑。只想正常聊天时可以保持关闭。",
+    "items": {
+      "director_enabled": {
+        "description": "启用剧情导演",
+        "type": "bool",
+        "default": false,
+        "hint": "开启后，由导演统一安排后台生活推进、剧情素材和任务优先级；关闭后使用普通调度。普通聊天不需要开启导演。"
+      },
+      "director_startup_grace_s": {
+        "description": "重启后的等待时间（秒）",
+        "type": "int",
+        "default": 60,
+        "hint": "重启后，导演等待多久再安排剧情任务，给机器人连接恢复留出时间。默认 60 秒。"
+      },
+      "director_max_turns_per_tick": {
+        "description": "每次最多安排的任务数",
+        "type": "int",
+        "default": 2,
+        "hint": "一次后台检查最多安排多少个导演回合，避免多项任务同时推进。"
+      },
+      "director_advance_idle_minutes": {
+        "description": "主动推进前的安静时间（分钟）",
+        "type": "int",
+        "default": 40,
+        "hint": "导演模式下，某个会话至少安静多久才考虑继续推进。每个会话单独计算。"
+      },
+      "director_advance_max_idle_minutes": {
+        "description": "停止主动推进的闲置时长（分钟）",
+        "type": "int",
+        "default": 0,
+        "hint": "会话长时间没有往来时，不再为它主动推进。0 表示不设置此上限。"
+      },
+      "director_advance_willingness_threshold": {
+        "description": "主动推进意愿门槛",
+        "type": "float",
+        "default": 0.3,
+        "hint": "导演模式使用，范围 0～1。门槛越高，主动推进越少。"
+      },
+      "director_advance_cool_minutes": {
+        "description": "同一会话推进间隔（分钟）",
+        "type": "int",
+        "default": 20,
+        "hint": "导演模式下，同一会话两次主动推进至少间隔多久。记录在重启后仍保留。"
+      },
+      "director_history_turns": {
+        "description": "主动消息参考的近期往来数",
+        "type": "int",
+        "default": 6,
+        "hint": "导演安排主动消息时，参考该会话多少条近期往来。0 表示不提供这部分历史。"
+      },
+      "director_compress_via_director": {
+        "description": "由导演安排记忆整理",
+        "type": "bool",
+        "default": true,
+        "hint": "开启后，将记忆整理纳入导演任务队列，同一时间优先整理一个会话；关闭后使用普通整理流程。"
+      },
+      "director_library_ttl_s": {
+        "description": "剧情素材刷新间隔（秒）",
+        "type": "int",
+        "default": 60,
+        "hint": "在光谱面板修改剧情素材后，导演最多等待多久重新读取。通常保留默认值。"
+      }
+    }
+  },
+  "storylines": {
+    "description": "剧情导演 · 故事线与收尾",
+    "type": "object",
+    "hint": "仅在导演模式下生效。管理故事线数量、预计跨度与收尾条件，通常保留默认值。",
+    "items": {
+      "director_closure_enabled": {
+        "description": "允许当前故事收尾",
+        "type": "bool",
+        "default": false,
+        "hint": "满足故事收尾条件后，允许选用收尾素材。关闭时持续推进而不自动收尾；故事收尾会改变当前剧情阶段。"
+      },
+      "director_arc_beats": {
+        "description": "故事收尾前的最少回合数",
+        "type": "int",
+        "default": 12,
+        "hint": "至少推进多少个剧情回合后，才开始判断是否可以收尾。达到此数不代表立即收尾，仍需满足其他条件。"
+      },
+      "director_beat_span_minutes": {
+        "description": "剧情回合持续时间（分钟）",
+        "type": "int",
+        "default": 45,
+        "hint": "当前剧情回合持续到此时长后，可结束并选择下一回合。它不代表聊天回复间隔。"
+      },
+      "director_thread_max_open": {
+        "description": "同时进行的故事线总数",
+        "type": "int",
+        "default": 5,
+        "hint": "已有未结束故事线达到上限时，不再新开故事线。0 表示不限制。"
+      },
+      "director_thread_max_per_kind": {
+        "description": "同类故事线数量上限",
+        "type": "int",
+        "default": 2,
+        "hint": "限制相同内容功能的故事线同时进行的数量。0 表示不限制；分类来自剧情素材设置。"
+      },
+      "director_thread_max_per_scope": {
+        "description": "同等跨度故事线数量上限",
+        "type": "int",
+        "default": 2,
+        "hint": "分别限制跨整幕、单个生活段、当场处理这三种跨度的故事线数量。0 表示不限制。"
+      },
+      "director_thread_abandon_factor": {
+        "description": "故事线超期放弃倍数",
+        "type": "float",
+        "default": 2.0,
+        "hint": "例如填 2，一条计划 3 回合完成的故事线超过 6 回合仍未完成时可放弃。0 表示不自动放弃。"
+      },
+      "director_min_paid_threads": {
+        "description": "收尾前至少完成的故事线数",
+        "type": "int",
+        "default": 1,
+        "hint": "故事至少真正完成多少条线索，才允许收尾。放弃的故事线不计入；0 表示不设置此门槛。"
+      },
+      "director_arc_max_beats": {
+        "description": "放宽收尾条件的回合数",
+        "type": "int",
+        "default": 40,
+        "hint": "推进到此回合数后，可放宽“至少完成的故事线数”要求，但仍需满足最少回合数且没有未结束故事线。0 表示不放宽。"
+      }
+    }
+  },
+  "pacing": {
+    "description": "剧情导演 · 节奏与介入",
+    "type": "object",
+    "hint": "控制剧情张弛与主动介入的密度。介入额度只管理剧情安排，与模型服务的费用和配额无关。",
+    "items": {
+      "director_pacing_enabled": {
+        "description": "启用剧情张弛节奏",
+        "type": "bool",
+        "default": false,
+        "hint": "让剧情经历升温、高峰、回落和休息阶段，影响导演选择素材的时机。仅在剧情导演开启时生效。"
+      },
+      "director_peak_threshold": {
+        "description": "进入高峰的强度门槛",
+        "type": "float",
+        "default": 0.9,
+        "hint": "剧情强度达到此值时进入高峰。通常使用默认值；提高会减少进入高峰的机会。"
+      },
+      "director_sustain_minutes": {
+        "description": "高峰保持时间（分钟）",
+        "type": "int",
+        "default": 5,
+        "hint": "进入高峰后维持多久，再开始回落。"
+      },
+      "director_relax_minutes": {
+        "description": "回落后的休息时间（分钟）",
+        "type": "int",
+        "default": 20,
+        "hint": "高峰回落后休息多久，再允许新一轮升温。"
+      },
+      "director_intensity_decay_per_minute": {
+        "description": "剧情强度每分钟回落量",
+        "type": "float",
+        "default": 0.005,
+        "hint": "强度随时间自然降低的速度。0 表示不自然回落；通常保留默认值。"
+      },
+      "director_w_message": {
+        "description": "聊天活跃变化的影响权重",
+        "type": "float",
+        "default": 0.5,
+        "hint": "聊天比平时突然活跃时，对剧情强度的影响。0 表示不使用此信号；数值越大，升温越明显。"
+      },
+      "director_w_mood": {
+        "description": "心情变化的影响权重",
+        "type": "float",
+        "default": 0.0,
+        "hint": "角色心情偏离平静状态时，对剧情强度的影响。0 表示不使用此信号，默认关闭这部分影响。"
+      },
+      "director_intervention_budget": {
+        "description": "剧情介入额度上限",
+        "type": "float",
+        "default": 2.4,
+        "hint": "限制导演在短时间内安排多少剧情介入。默认 2.4；低于最轻素材所需额度 1.2 时，介入可能持续被推迟。此项不是 API 配额。"
+      },
+      "director_intervention_recharge": {
+        "description": "每分钟恢复的介入额度",
+        "type": "float",
+        "default": 1.0,
+        "hint": "剧情介入额度按时间恢复的速度。越大，导演越快能安排下一次介入。"
+      },
+      "director_defer_minutes": {
+        "description": "介入额度不足时的等待（分钟）",
+        "type": "int",
+        "default": 10,
+        "hint": "某项剧情素材因额度不足被推迟后，多久重新考虑它。"
+      }
+    }
+  },
+  "director_advanced": {
+    "description": "剧情导演 · 高级设置",
+    "type": "object",
+    "hint": "条件判断、素材评分与异常任务整理。没有对应需求时保留默认值。",
+    "items": {
+      "director_tier2_fresh_minutes": {
+        "description": "条件判断结果复用时间（分钟）",
+        "type": "int",
+        "default": 10,
+        "hint": "剧情条件需要模型提供变量值时，多久内复用已有结果。时间越长，额外模型请求越少，但条件变化可能反映较慢。"
+      },
+      "director_tier3_enabled": {
+        "description": "允许模型判断复杂剧情条件",
+        "type": "bool",
+        "default": false,
+        "hint": "用于无法用直接规则或变量比较表达的语义条件。可能增加额外模型请求，通常保持关闭。"
+      },
+      "director_tier3_max_per_hour": {
+        "description": "复杂条件每小时判断上限",
+        "type": "int",
+        "default": 20,
+        "hint": "限制复杂剧情条件的模型判断次数。达到上限后，本轮相关条件按未满足处理。"
+      },
+      "director_eval_enabled": {
+        "description": "启用剧情素材评分",
+        "type": "bool",
+        "default": false,
+        "hint": "根据素材的动机、思考连贯性、情节密度和介入程度评分。需要在剧情素材面板填写相应标注；通常保持关闭。"
+      },
+      "director_intent_expire_minutes": {
+        "description": "已尝试承诺的超期时间（分钟）",
+        "type": "int",
+        "default": 60,
+        "hint": "导演模式下，承诺已尝试执行却仍未确认处理结果时，多久后标记失效。不是所有未来承诺的存活时长。"
+      },
+      "director_intent_max_attempts": {
+        "description": "承诺尝试次数上限",
+        "type": "int",
+        "default": 3,
+        "hint": "导演整理已尝试承诺时，达到此次数可标记失效。用于结束未能完成的任务，不会强制承诺重复发送。"
+      },
+      "director_silent_state_mutation": {
+        "description": "允许无回复时改变位置与作息（高级）",
+        "type": "bool",
+        "default": false,
+        "hint": "开启后，部分沉默回合也可提交位置或作息变化。通常保持关闭，避免没有对外回应却改变生活状态。"
+      },
+      "director_fires_max_rows": {
+        "description": "剧情执行记录保留上限",
+        "type": "int",
+        "default": 0,
+        "hint": "0 表示不限制。设为正数时，超过上限的旧执行记录会被汇总，旧正文可能不再保留；聊天原文不受此项控制。"
+      }
+    }
+  },
+  "stability": {
+    "description": "异常暂停与请求频率",
+    "type": "object",
+    "hint": "管理接口故障时的等待、生活冻结和回复格式恢复。请求限频与系统冻结是两套独立开关。",
+    "items": {
+      "freeze_enabled": {
+        "description": "异常时暂停生活推进",
+        "type": "bool",
+        "default": false,
+        "hint": "实际模型、发送或业务错误累计达到阈值后，暂停光谱及接入棱镜的生活推进。暂停时间不计入内部睡眠、等待和衰减；仍接收来信，管理指令仍可使用。"
+      },
+      "freeze_fail_streak": {
+        "description": "触发暂停的累计失败次数",
+        "type": "int",
+        "default": 3,
+        "hint": "实际失败累计达到此次数时暂停，同一异常只计一次；限流跳过不算失败。解冻或手动重置后计数清零。"
+      },
+      "freeze_max_minutes": {
+        "description": "最长暂停时间（分钟）",
+        "type": "int",
+        "default": 120,
+        "hint": "到期后恢复尝试，错误仍在时可能再次暂停。0 表示不自动到期，需通过恢复条件或手动解冻。"
+      },
+      "freeze_probe_interval_seconds": {
+        "description": "连接状态检查间隔（秒）",
+        "type": "int",
+        "default": 60,
+        "hint": "仅因发送故障暂停时，多久检查一次平台连接。实际最短 10 秒；模型或内部业务故障不靠连接在线来恢复。"
+      },
+      "freeze_confirm_times": {
+        "description": "确认断线需要的检查次数",
+        "type": "int",
+        "default": 2,
+        "hint": "暂停期间，连续检查到离线多少次才确认平台断线。此项不延迟达到失败阈值后的业务暂停。"
+      },
+      "freeze_thaw_confirm_times": {
+        "description": "恢复连接需要的检查次数",
+        "type": "int",
+        "default": 2,
+        "hint": "仅发送故障暂停时，连续在线多少次后恢复；收到真实平台来信也可恢复。模型或混合故障需手动解冻或等待最长暂停时间到期。"
+      },
+      "freeze_probe_fail_open": {
+        "description": "无法获取连接状态时允许恢复",
+        "type": "bool",
+        "default": true,
+        "hint": "仅用于发送故障的恢复检查。开启时，无结果按在线计数；关闭时继续等待。不会解除模型或混合故障的暂停。"
+      },
+      "low_freq_mode": {
+        "description": "限制模型请求频率",
+        "type": "bool",
+        "default": false,
+        "hint": "对 OpenAI 兼容接口的前台和后台模型请求共同限速；短时间内允许突发请求。嵌入模型及其他接口不保证受此限制。"
+      },
+      "low_freq_rpm": {
+        "description": "每分钟补充的请求额度",
+        "type": "int",
+        "default": 8,
+        "hint": "请求额度的补充速率与最大积存数量，实际最少为 1。默认 8；这不是任意连续一分钟的严格请求上限。"
+      },
+      "low_freq_pause_seconds": {
+        "description": "接口故障后的等待（秒）",
+        "type": "int",
+        "default": 60,
+        "hint": "限频开启时，遇到上游限流、超时、连接或服务端故障后，共同暂停相关请求多久。用于减少反复请求故障接口。"
+      },
+      "low_freq_max_wait_seconds": {
+        "description": "请求排队最长等待（秒）",
+        "type": "int",
+        "default": 30,
+        "hint": "请求额度不足时最多等待多久，超时后跳过本次请求。避免普通回复排队过久。"
+      },
+      "v20_reask_enabled": {
+        "description": "回复格式异常时重试一次",
+        "type": "bool",
+        "default": true,
+        "hint": "首轮回复格式无法解析时，带错误说明再请求一次。仅失败时增加一次模型调用；关闭后该轮不发送无法解析的回复。"
+      },
+      "max_fail_streak": {
+        "description": "暂时停用会话的连续格式错误次数",
+        "type": "int",
+        "default": 3,
+        "hint": "同一会话连续解析失败达到此次数后，暂时停止光谱接管该会话。可发送“/光谱核心 on”重新启用；此项不是每轮重试次数。"
+      }
+    }
+  },
+  "diagnostics": {
+    "description": "日志与排查",
+    "type": "object",
+    "hint": "日常保持关闭。日志可能包含人设、对话和角色思考，排查结束后关闭。",
+    "items": {
+      "debug": {
+        "description": "记录完整模型输入（排查用）",
+        "type": "bool",
+        "default": false,
+        "hint": "将每轮完整输入写入日志，包含人设与对话资料，日志量较大。日常保持关闭，排查结束后关闭。"
+      },
+      "possession_debug": {
+        "description": "记录思考输出（排查用）",
+        "type": "bool",
+        "default": false,
+        "hint": "记录接口返回的原生推理和角色自述思考，方便核对格式。日志可能包含私密内容；它不能单独证明原生推理已关闭。"
+      }
+    }
+  },
+  "enabled": {
+    "description": "启用光谱核心",
+    "type": "bool",
+    "default": false,
+    "hint": "开启后，光谱负责角色的对话、记忆和生活状态。首次使用先开启此项；关闭后不介入聊天，已有数据保留。",
+    "invisible": true
+  },
+  "debug": {
+    "description": "记录完整模型输入（排查用）",
+    "type": "bool",
+    "default": false,
+    "hint": "将每轮完整输入写入日志，包含人设与对话资料，日志量较大。日常保持关闭，排查结束后关闭。",
+    "invisible": true
+  },
+  "scope": {
+    "description": "使用范围",
+    "type": "string",
+    "default": "private",
+    "options": [
+      "private",
+      "all"
+    ],
+    "labels": [
+      "仅私聊",
+      "私聊与群聊"
+    ],
+    "hint": "选择只用于私聊，或同时用于私聊和群聊。群聊主动插话另有开关。",
+    "invisible": true
+  },
+  "isolate_history": {
+    "description": "使用整理后的对话历史",
+    "type": "bool",
+    "default": true,
+    "hint": "开启后，以真实收发记录重新组织上下文，减少反复模仿旧回复。通常保持开启。",
+    "invisible": true
+  },
+  "exchange_limit": {
+    "description": "最近对话保留条数",
+    "type": "int",
+    "default": 12,
+    "hint": "每次回复提供多少条最近真实收发的消息。数值越大，近期上下文越完整，也会增加请求长度。",
+    "invisible": true
+  },
+  "enable_fts_memory": {
+    "description": "根据话题查找记忆",
+    "type": "bool",
+    "default": true,
+    "hint": "开启后，根据当前话题查找相关长期记忆。通常保持开启。",
+    "invisible": true
+  },
+  "l2_commitments_enabled": {
+    "description": "记录并跟进承诺",
+    "type": "bool",
+    "default": false,
+    "hint": "开启后，记录角色明确说出的具体承诺，并在约定时间尝试跟进。可能产生后台模型请求和主动消息。",
+    "invisible": true
+  },
+  "l2_advance_enabled": {
+    "description": "允许独立生活推进",
+    "type": "bool",
+    "default": false,
+    "hint": "普通调度模式下，角色可在聊天安静一段时间后继续自己的生活并决定是否联系他人。使用剧情导演时，请同时查看导演中的主动推进设置。",
+    "invisible": true
+  },
+  "l3_willingness_threshold": {
+    "description": "主动推进意愿门槛",
+    "type": "float",
+    "default": 0.3,
+    "hint": "普通调度模式使用，范围 0～1。门槛越高，主动推进越少；剧情导演使用自己的意愿门槛。",
+    "invisible": true
+  },
+  "advance_idle_minutes": {
+    "description": "主动推进前的安静时间（分钟）",
+    "type": "int",
+    "default": 40,
+    "hint": "普通调度模式下，该会话安静多久后才考虑独立推进。剧情导演使用其单独设置的安静时间。",
+    "invisible": true
+  },
+  "advance_cool_minutes": {
+    "description": "主动推进最短间隔（分钟）",
+    "type": "int",
+    "default": 20,
+    "hint": "普通调度模式下，同一会话两次独立推进之间至少间隔多久。数值越大，后台推进越少。",
+    "invisible": true
+  },
+  "advance_model_override": {
+    "description": "后台使用的模型名称",
+    "type": "string",
+    "default": "",
+    "hint": "留空使用所选提供商的默认模型。需要覆盖时，填写该提供商支持的模型名称；这不是提供商 ID，也不会更换连接地址。",
+    "invisible": true
+  },
+  "max_fail_streak": {
+    "description": "暂时停用会话的连续格式错误次数",
+    "type": "int",
+    "default": 3,
+    "hint": "同一会话连续解析失败达到此次数后，暂时停止光谱接管该会话。可发送“/光谱核心 on”重新启用；此项不是每轮重试次数。",
+    "invisible": true
+  },
+  "poll_seconds": {
+    "description": "后台任务检查间隔（秒）",
+    "type": "int",
+    "default": 10,
+    "hint": "后台多久检查一次到期承诺、睡眠和生活任务。间隔越小，响应到期任务越及时；通常保留默认值。",
+    "invisible": true
+  },
+  "freeze_section": {
+    "description": "旧版分隔标记",
+    "type": "text",
+    "invisible": true,
+    "hint": "仅保留旧配置兼容，不参与功能控制。"
+  },
+  "freeze_enabled": {
+    "description": "异常时暂停生活推进",
+    "type": "bool",
+    "default": false,
+    "hint": "实际模型、发送或业务错误累计达到阈值后，暂停光谱及接入棱镜的生活推进。暂停时间不计入内部睡眠、等待和衰减；仍接收来信，管理指令仍可使用。",
+    "invisible": true
+  },
+  "freeze_fail_streak": {
+    "description": "触发暂停的累计失败次数",
+    "type": "int",
+    "default": 3,
+    "hint": "实际失败累计达到此次数时暂停，同一异常只计一次；限流跳过不算失败。解冻或手动重置后计数清零。",
+    "invisible": true
+  },
+  "freeze_confirm_times": {
+    "description": "确认断线需要的检查次数",
+    "type": "int",
+    "default": 2,
+    "hint": "暂停期间，连续检查到离线多少次才确认平台断线。此项不延迟达到失败阈值后的业务暂停。",
+    "invisible": true
+  },
+  "freeze_probe_interval_seconds": {
+    "description": "连接状态检查间隔（秒）",
+    "type": "int",
+    "default": 60,
+    "hint": "仅因发送故障暂停时，多久检查一次平台连接。实际最短 10 秒；模型或内部业务故障不靠连接在线来恢复。",
+    "invisible": true
+  },
+  "freeze_thaw_confirm_times": {
+    "description": "恢复连接需要的检查次数",
+    "type": "int",
+    "default": 2,
+    "hint": "仅发送故障暂停时，连续在线多少次后恢复；收到真实平台来信也可恢复。模型或混合故障需手动解冻或等待最长暂停时间到期。",
+    "invisible": true
+  },
+  "freeze_max_minutes": {
+    "description": "最长暂停时间（分钟）",
+    "type": "int",
+    "default": 120,
+    "hint": "到期后恢复尝试，错误仍在时可能再次暂停。0 表示不自动到期，需通过恢复条件或手动解冻。",
+    "invisible": true
+  },
+  "freeze_probe_fail_open": {
+    "description": "无法获取连接状态时允许恢复",
+    "type": "bool",
+    "default": true,
+    "hint": "仅用于发送故障的恢复检查。开启时，无结果按在线计数；关闭时继续等待。不会解除模型或混合故障的暂停。",
+    "invisible": true
+  },
+  "l2_sleep_enabled": {
+    "description": "允许角色睡觉",
+    "type": "bool",
+    "default": true,
+    "hint": "开启后，角色可以选择入睡，睡眠期间暂停常规回应并收集来信，醒来后继续。此项不规定必须在夜间入睡。",
+    "invisible": true
+  },
+  "sleep_min_minutes": {
+    "description": "最短睡眠时间（分钟）",
+    "type": "int",
+    "default": 60,
+    "hint": "角色每次睡眠允许的最短时长。应小于或等于最长睡眠时间。",
+    "invisible": true
+  },
+  "sleep_max_minutes": {
+    "description": "最长睡眠时间（分钟）",
+    "type": "int",
+    "default": 600,
+    "hint": "角色睡眠的最长时长，到达上限后唤醒。默认 600 分钟，即 10 小时。",
+    "invisible": true
+  },
+  "sleep_inbox_enabled": {
+    "description": "醒来后查看睡眠期间的来信",
+    "type": "bool",
+    "default": true,
+    "hint": "开启后，醒来时将未读来信提供给角色，由角色决定是否回复。关闭后醒来清空睡眠收件箱。",
+    "invisible": true
+  },
+  "l3_interject_enabled": {
+    "description": "允许主动参与群聊",
+    "type": "bool",
+    "default": false,
+    "hint": "需要使用范围包含群聊。开启后，角色可观察未直接叫自己的群消息，并在意愿达到门槛时插话；可能增加请求与主动消息。",
+    "invisible": true
+  },
+  "l3_interject_threshold": {
+    "description": "群聊插话意愿门槛",
+    "type": "float",
+    "default": 0.6,
+    "hint": "范围 0～1。门槛越高，主动插话越少；仅在允许主动参与群聊时生效。",
+    "invisible": true
+  },
+  "person_profile_enabled": {
+    "description": "记住人物与关系",
+    "type": "bool",
+    "default": true,
+    "hint": "按平台用户身份统一记录人物、好感和信任，支持跨私聊与群聊识别同一个人。通常保持开启；关闭后关系变化不再累积。",
+    "invisible": true
+  },
+  "prism_enabled": {
+    "description": "使用棱镜的心情与回忆",
+    "type": "bool",
+    "default": true,
+    "hint": "需要安装并启用棱镜插件。开启后，让角色参考棱镜提供的主观心情与相关回忆；棱镜不可用时仍可使用光谱。",
+    "invisible": true
+  },
+  "possession_enabled": {
+    "description": "启用角色自述思考（实验）",
+    "type": "bool",
+    "default": true,
+    "hint": "让角色以第一人称写出本轮思考。关闭后，下面两个续写模式均不启用。此功能不能保证关闭模型原生推理。",
+    "invisible": true
+  },
+  "prefill_possession": {
+    "description": "DeepSeek 思考续写模式",
+    "type": "bool",
+    "default": true,
+    "hint": "需要先开启角色自述思考。使用支持前缀续写的 DeepSeek beta 接口时，延续角色的思考开头；不支持时使用普通思考格式。",
+    "invisible": true
+  },
+  "prefill_gemini_closed": {
+    "description": "Gemini 思考续写模式",
+    "type": "bool",
+    "default": true,
+    "hint": "需要先开启角色自述思考。尝试以角色已有思考继续生成；接口拒绝这种消息结构时保留思考材料并调整请求格式。兼容性取决于所用接口。",
+    "invisible": true
+  },
+  "possession_debug": {
+    "description": "记录思考输出（排查用）",
+    "type": "bool",
+    "default": false,
+    "hint": "记录接口返回的原生推理和角色自述思考，方便核对格式。日志可能包含私密内容；它不能单独证明原生推理已关闭。",
+    "invisible": true
+  },
+  "low_freq_mode": {
+    "description": "限制模型请求频率",
+    "type": "bool",
+    "default": false,
+    "hint": "对 OpenAI 兼容接口的前台和后台模型请求共同限速；短时间内允许突发请求。嵌入模型及其他接口不保证受此限制。",
+    "invisible": true
+  },
+  "low_freq_rpm": {
+    "description": "每分钟补充的请求额度",
+    "type": "int",
+    "default": 8,
+    "hint": "请求额度的补充速率与最大积存数量，实际最少为 1。默认 8；这不是任意连续一分钟的严格请求上限。",
+    "invisible": true
+  },
+  "low_freq_pause_seconds": {
+    "description": "接口故障后的等待（秒）",
+    "type": "int",
+    "default": 60,
+    "hint": "限频开启时，遇到上游限流、超时、连接或服务端故障后，共同暂停相关请求多久。用于减少反复请求故障接口。",
+    "invisible": true
+  },
+  "low_freq_max_wait_seconds": {
+    "description": "请求排队最长等待（秒）",
+    "type": "int",
+    "default": 30,
+    "hint": "请求额度不足时最多等待多久，超时后跳过本次请求。避免普通回复排队过久。",
+    "invisible": true
+  },
+  "v20_reask_enabled": {
+    "description": "回复格式异常时重试一次",
+    "type": "bool",
+    "default": true,
+    "hint": "首轮回复格式无法解析时，带错误说明再请求一次。仅失败时增加一次模型调用；关闭后该轮不发送无法解析的回复。",
+    "invisible": true
+  },
+  "outing_recent_minutes": {
+    "description": "同行者近期联系范围（分钟）",
+    "type": "int",
+    "default": 20,
+    "hint": "角色想与当前会话之外的人外出时，要求最近在此时间内与对方真实联系过。用于减少把同行者认错；调大更宽松。",
+    "invisible": true
+  },
+  "person_private_in_group": {
+    "description": "保护私聊内容",
+    "type": "bool",
+    "default": true,
+    "hint": "开启后，群聊中不提供私聊得知的私事。关闭会放宽私聊与群聊之间的记忆共享范围。",
+    "invisible": true
+  },
+  "cross_ref_enabled": {
+    "description": "回忆其他人的相关往来",
+    "type": "bool",
+    "default": true,
+    "hint": "提到已认识的人或共同话题时，回忆其他会话的相关往来，并保留人物、来源和时间。是否说出来由AI决定；这项回忆不需要向量模型。",
+    "invisible": true
+  },
+  "director_enabled": {
+    "description": "启用剧情导演",
+    "type": "bool",
+    "default": false,
+    "hint": "开启后，由导演统一安排后台生活推进、剧情素材和任务优先级；关闭后使用普通调度。普通聊天不需要开启导演。",
+    "invisible": true
+  },
+  "director_arc_beats": {
+    "description": "故事收尾前的最少回合数",
+    "type": "int",
+    "default": 12,
+    "hint": "至少推进多少个剧情回合后，才开始判断是否可以收尾。达到此数不代表立即收尾，仍需满足其他条件。",
+    "invisible": true
+  },
+  "director_beat_span_minutes": {
+    "description": "剧情回合持续时间（分钟）",
+    "type": "int",
+    "default": 45,
+    "hint": "当前剧情回合持续到此时长后，可结束并选择下一回合。它不代表聊天回复间隔。",
+    "invisible": true
+  },
+  "director_startup_grace_s": {
+    "description": "重启后的等待时间（秒）",
+    "type": "int",
+    "default": 60,
+    "hint": "重启后，导演等待多久再安排剧情任务，给机器人连接恢复留出时间。默认 60 秒。",
+    "invisible": true
+  },
+  "director_max_turns_per_tick": {
+    "description": "每次最多安排的任务数",
+    "type": "int",
+    "default": 2,
+    "hint": "一次后台检查最多安排多少个导演回合，避免多项任务同时推进。",
+    "invisible": true
+  },
+  "director_advance_idle_minutes": {
+    "description": "主动推进前的安静时间（分钟）",
+    "type": "int",
+    "default": 40,
+    "hint": "导演模式下，某个会话至少安静多久才考虑继续推进。每个会话单独计算。",
+    "invisible": true
+  },
+  "director_advance_max_idle_minutes": {
+    "description": "停止主动推进的闲置时长（分钟）",
+    "type": "int",
+    "default": 0,
+    "hint": "会话长时间没有往来时，不再为它主动推进。0 表示不设置此上限。",
+    "invisible": true
+  },
+  "director_advance_willingness_threshold": {
+    "description": "主动推进意愿门槛",
+    "type": "float",
+    "default": 0.3,
+    "hint": "导演模式使用，范围 0～1。门槛越高，主动推进越少。",
+    "invisible": true
+  },
+  "director_advance_cool_minutes": {
+    "description": "同一会话推进间隔（分钟）",
+    "type": "int",
+    "default": 20,
+    "hint": "导演模式下，同一会话两次主动推进至少间隔多久。记录在重启后仍保留。",
+    "invisible": true
+  },
+  "director_thread_max_open": {
+    "description": "同时进行的故事线总数",
+    "type": "int",
+    "default": 5,
+    "hint": "已有未结束故事线达到上限时，不再新开故事线。0 表示不限制。",
+    "invisible": true
+  },
+  "director_thread_abandon_factor": {
+    "description": "故事线超期放弃倍数",
+    "type": "float",
+    "default": 2.0,
+    "hint": "例如填 2，一条计划 3 回合完成的故事线超过 6 回合仍未完成时可放弃。0 表示不自动放弃。",
+    "invisible": true
+  },
+  "director_min_paid_threads": {
+    "description": "收尾前至少完成的故事线数",
+    "type": "int",
+    "default": 1,
+    "hint": "故事至少真正完成多少条线索，才允许收尾。放弃的故事线不计入；0 表示不设置此门槛。",
+    "invisible": true
+  },
+  "director_arc_max_beats": {
+    "description": "放宽收尾条件的回合数",
+    "type": "int",
+    "default": 40,
+    "hint": "推进到此回合数后，可放宽“至少完成的故事线数”要求，但仍需满足最少回合数且没有未结束故事线。0 表示不放宽。",
+    "invisible": true
+  },
+  "director_fires_max_rows": {
+    "description": "剧情执行记录保留上限",
+    "type": "int",
+    "default": 0,
+    "hint": "0 表示不限制。设为正数时，超过上限的旧执行记录会被汇总，旧正文可能不再保留；聊天原文不受此项控制。",
+    "invisible": true
+  },
+  "director_library_ttl_s": {
+    "description": "剧情素材刷新间隔（秒）",
+    "type": "int",
+    "default": 60,
+    "hint": "在光谱面板修改剧情素材后，导演最多等待多久重新读取。通常保留默认值。",
+    "invisible": true
+  },
+  "director_history_turns": {
+    "description": "主动消息参考的近期往来数",
+    "type": "int",
+    "default": 6,
+    "hint": "导演安排主动消息时，参考该会话多少条近期往来。0 表示不提供这部分历史。",
+    "invisible": true
+  },
+  "director_compress_via_director": {
+    "description": "由导演安排记忆整理",
+    "type": "bool",
+    "default": true,
+    "hint": "开启后，将记忆整理纳入导演任务队列，同一时间优先整理一个会话；关闭后使用普通整理流程。",
+    "invisible": true
+  },
+  "director_closure_enabled": {
+    "description": "允许当前故事收尾",
+    "type": "bool",
+    "default": false,
+    "hint": "满足故事收尾条件后，允许选用收尾素材。关闭时持续推进而不自动收尾；故事收尾会改变当前剧情阶段。",
+    "invisible": true
+  },
+  "director_pacing_enabled": {
+    "description": "启用剧情张弛节奏",
+    "type": "bool",
+    "default": false,
+    "hint": "让剧情经历升温、高峰、回落和休息阶段，影响导演选择素材的时机。仅在剧情导演开启时生效。",
+    "invisible": true
+  },
+  "director_peak_threshold": {
+    "description": "进入高峰的强度门槛",
+    "type": "float",
+    "default": 0.9,
+    "hint": "剧情强度达到此值时进入高峰。通常使用默认值；提高会减少进入高峰的机会。",
+    "invisible": true
+  },
+  "director_sustain_minutes": {
+    "description": "高峰保持时间（分钟）",
+    "type": "int",
+    "default": 5,
+    "hint": "进入高峰后维持多久，再开始回落。",
+    "invisible": true
+  },
+  "director_relax_minutes": {
+    "description": "回落后的休息时间（分钟）",
+    "type": "int",
+    "default": 20,
+    "hint": "高峰回落后休息多久，再允许新一轮升温。",
+    "invisible": true
+  },
+  "director_intensity_decay_per_minute": {
+    "description": "剧情强度每分钟回落量",
+    "type": "float",
+    "default": 0.005,
+    "hint": "强度随时间自然降低的速度。0 表示不自然回落；通常保留默认值。",
+    "invisible": true
+  },
+  "director_w_message": {
+    "description": "聊天活跃变化的影响权重",
+    "type": "float",
+    "default": 0.5,
+    "hint": "聊天比平时突然活跃时，对剧情强度的影响。0 表示不使用此信号；数值越大，升温越明显。",
+    "invisible": true
+  },
+  "director_w_mood": {
+    "description": "心情变化的影响权重",
+    "type": "float",
+    "default": 0.0,
+    "hint": "角色心情偏离平静状态时，对剧情强度的影响。0 表示不使用此信号，默认关闭这部分影响。",
+    "invisible": true
+  },
+  "director_intervention_budget": {
+    "description": "剧情介入额度上限",
+    "type": "float",
+    "default": 2.4,
+    "hint": "限制导演在短时间内安排多少剧情介入。默认 2.4；低于最轻素材所需额度 1.2 时，介入可能持续被推迟。此项不是 API 配额。",
+    "invisible": true
+  },
+  "director_intervention_recharge": {
+    "description": "每分钟恢复的介入额度",
+    "type": "float",
+    "default": 1.0,
+    "hint": "剧情介入额度按时间恢复的速度。越大，导演越快能安排下一次介入。",
+    "invisible": true
+  },
+  "director_defer_minutes": {
+    "description": "介入额度不足时的等待（分钟）",
+    "type": "int",
+    "default": 10,
+    "hint": "某项剧情素材因额度不足被推迟后，多久重新考虑它。",
+    "invisible": true
+  },
+  "director_tier2_fresh_minutes": {
+    "description": "条件判断结果复用时间（分钟）",
+    "type": "int",
+    "default": 10,
+    "hint": "剧情条件需要模型提供变量值时，多久内复用已有结果。时间越长，额外模型请求越少，但条件变化可能反映较慢。",
+    "invisible": true
+  },
+  "director_tier3_enabled": {
+    "description": "允许模型判断复杂剧情条件",
+    "type": "bool",
+    "default": false,
+    "hint": "用于无法用直接规则或变量比较表达的语义条件。可能增加额外模型请求，通常保持关闭。",
+    "invisible": true
+  },
+  "director_tier3_max_per_hour": {
+    "description": "复杂条件每小时判断上限",
+    "type": "int",
+    "default": 20,
+    "hint": "限制复杂剧情条件的模型判断次数。达到上限后，本轮相关条件按未满足处理。",
+    "invisible": true
+  },
+  "director_eval_enabled": {
+    "description": "启用剧情素材评分",
+    "type": "bool",
+    "default": false,
+    "hint": "根据素材的动机、思考连贯性、情节密度和介入程度评分。需要在剧情素材面板填写相应标注；通常保持关闭。",
+    "invisible": true
+  },
+  "director_intent_expire_minutes": {
+    "description": "已尝试承诺的超期时间（分钟）",
+    "type": "int",
+    "default": 60,
+    "hint": "导演模式下，承诺已尝试执行却仍未确认处理结果时，多久后标记失效。不是所有未来承诺的存活时长。",
+    "invisible": true
+  },
+  "director_intent_max_attempts": {
+    "description": "承诺尝试次数上限",
+    "type": "int",
+    "default": 3,
+    "hint": "导演整理已尝试承诺时，达到此次数可标记失效。用于结束未能完成的任务，不会强制承诺重复发送。",
+    "invisible": true
+  },
+  "director_silent_state_mutation": {
+    "description": "允许无回复时改变位置与作息（高级）",
+    "type": "bool",
+    "default": false,
+    "hint": "开启后，部分沉默回合也可提交位置或作息变化。通常保持关闭，避免没有对外回应却改变生活状态。",
+    "invisible": true
+  },
+  "director_thread_max_per_kind": {
+    "description": "同类故事线数量上限",
+    "type": "int",
+    "default": 2,
+    "hint": "限制相同内容功能的故事线同时进行的数量。0 表示不限制；分类来自剧情素材设置。",
+    "invisible": true
+  },
+  "director_thread_max_per_scope": {
+    "description": "同等跨度故事线数量上限",
+    "type": "int",
+    "default": 2,
+    "hint": "分别限制跨整幕、单个生活段、当场处理这三种跨度的故事线数量。0 表示不限制。",
+    "invisible": true
+  },
+  "life_section": {
+    "description": "旧版分隔标记",
+    "type": "text",
+    "invisible": true,
+    "hint": "仅保留旧配置兼容，不参与功能控制。"
+  },
+  "life_style": {
+    "description": "生活叙述风格",
+    "type": "text",
+    "default": "**我的日记体散文。用\"我\"写**，记「上一刻 → 现在」这段时间里我真实经历的事：\n我将会用白描手法完成这篇日记体散文。",
+    "hint": "填写角色记录自身经历的写法，例如“我用简洁的第一人称记录这一段经历”。只调整生活叙述风格，留空使用默认写法。",
+    "invisible": true
+  },
+  "memory_section": {
+    "description": "旧版分隔标记",
+    "type": "text",
+    "invisible": true,
+    "hint": "仅保留旧配置兼容，不参与功能控制。"
+  },
+  "memory_recent_limit": {
+    "description": "最近记忆条数",
+    "type": "int",
+    "default": 4,
+    "hint": "每次回复固定带入多少条最近保存的长期记忆。设为 0 时不提供这一部分。",
+    "invisible": true
+  },
+  "memory_related_limit": {
+    "description": "相关记忆条数",
+    "type": "int",
+    "default": 8,
+    "hint": "每次回复额外查找多少条与当前话题相关的长期记忆，与最近记忆去重。增加条数会增加请求长度。",
+    "invisible": true
+  },
+  "memory_recall_patterns": {
+    "description": "关键词检索范围",
+    "type": "int",
+    "default": 24,
+    "hint": "从当前话题提取的检索片段数量上限，实际最少为 4。较长的话题可适当提高，通常使用默认值。",
+    "invisible": true
+  },
+  "memory_vector_enabled": {
+    "description": "按意思查找记忆",
+    "type": "bool",
+    "default": true,
+    "hint": "开启后，尝试找回用词不同但意思相近的记忆，补充关键词检索。需要在 AstrBot 配置可用的嵌入模型；没有时仍使用关键词检索。",
+    "invisible": true
+  },
+  "memory_vector_topk": {
+    "description": "语义检索默认候选数",
+    "type": "int",
+    "default": 6,
+    "hint": "语义检索没有指定数量时使用此值。实际召回还受最近记忆和相关记忆条数限制，通常无需调整。",
+    "invisible": true
+  },
+  "memory_origin_enabled": {
+    "description": "回看更早的对话原文",
+    "type": "bool",
+    "default": false,
+    "hint": "开启后，在长期记忆之外提供相关旧对话原话，帮助核对曾经说过的事。不会重复提供已经带入的最近对话。",
+    "invisible": true
+  },
+  "memory_origin_segments": {
+    "description": "旧对话片段数量",
+    "type": "int",
+    "default": 2,
+    "hint": "每次最多提供多少段相关旧对话。仅在回看对话原文开启时生效。",
+    "invisible": true
+  },
+  "memory_origin_radius": {
+    "description": "片段前后补充条数",
+    "type": "int",
+    "default": 2,
+    "hint": "找到一条相关原话后，向前和向后各补充多少条消息。例如填 2 时，一段最多包含命中消息及前后共 4 条消息。",
+    "invisible": true
+  },
+  "memory_origin_segment_chars": {
+    "description": "单段旧对话字数上限",
+    "type": "int",
+    "default": 1500,
+    "hint": "限制每段旧对话的长度，默认 1500 字符。命中的核心消息会保留，周边消息可能截短。",
+    "invisible": true
+  },
+  "memory_origin_vector_enabled": {
+    "description": "按意思查找旧对话",
+    "type": "bool",
+    "default": false,
+    "hint": "回看原文时，用语义检索补充关键词未找到的片段。需要嵌入模型；首次开启会在后台建立旧对话索引，可能增加嵌入请求。",
+    "invisible": true
+  },
+  "memory_origin_vector_topk": {
+    "description": "旧对话语义候选数",
+    "type": "int",
+    "default": 12,
+    "hint": "每次语义检索取回多少条旧消息候选，再按会话和片段数量筛选。仅在旧对话语义检索开启时生效。",
+    "invisible": true
+  },
+  "worldbook_section": {
+    "description": "旧版分隔标记",
+    "type": "text",
+    "invisible": true,
+    "hint": "仅保留旧配置兼容，不参与功能控制。"
+  },
+  "worldbook_enabled": {
+    "description": "启用世界书",
+    "type": "bool",
+    "default": false,
+    "hint": "为角色提供跨会话通用的背景、人物和世界设定。条目在光谱面板的“世界书”中编辑；常驻条目持续提供，其他条目按条件触发。",
+    "invisible": true
+  },
+  "worldbook_max": {
+    "description": "每次最多使用的条目数",
+    "type": "int",
+    "default": 0,
+    "hint": "0 表示不限制条数。仍受世界书篇幅预算限制。",
+    "invisible": true
+  },
+  "worldbook_budget_percent": {
+    "description": "世界书篇幅比例（%）",
+    "type": "int",
+    "default": 25,
+    "hint": "世界书可占用的估算 token 数，占下方参考上下文长度的百分比。默认 25%；数值越大，允许带入的设定越多。0 会使预算接近零，超过 100 使用默认比例。",
+    "invisible": true
+  },
+  "worldbook_context_tokens": {
+    "description": "预算参考上下文长度（token）",
+    "type": "int",
+    "default": 32000,
+    "hint": "用于计算世界书预算，默认 32000；配合 25% 时预算为 8000 token。此项只用于预算估算，不会修改模型本身的上下文上限。",
+    "invisible": true
+  },
+  "worldbook_token_budget": {
+    "description": "世界书篇幅绝对上限（token）",
+    "type": "int",
+    "default": 0,
+    "hint": "0 表示不另设上限。填正数时，世界书预算取比例预算与此值中的较小者。",
+    "invisible": true
+  },
+  "worldbook_recursion": {
+    "description": "允许条目带出其他条目",
+    "type": "bool",
+    "default": false,
+    "hint": "开启后，已触发条目的正文也参与触发词检查，可带出相关设定。通常先保持关闭，确有联动需求再开启。",
+    "invisible": true
+  },
+  "worldbook_max_steps": {
+    "description": "条目联动最多检查轮数",
+    "type": "int",
+    "default": 3,
+    "hint": "仅在条目联动开启时生效，实际最多 10 轮。越大可能带入越多间接相关设定。",
+    "invisible": true
+  },
+  "worldbook_scan_depth": {
+    "description": "触发词回看消息数",
+    "type": "int",
+    "default": 2,
+    "hint": "检查当前消息之外，再回看多少条近期往来中的触发词。0 表示只检查当前消息；此项不控制设定的插入位置。",
+    "invisible": true
+  },
+  "worldbook_vector_enabled": {
+    "description": "按意思匹配无触发词条目",
+    "type": "bool",
+    "default": false,
+    "hint": "开启后，为没有触发词的条目补充语义匹配。需要世界书总开关和可用的嵌入模型；已有触发词的条目仍按触发规则判断。",
+    "invisible": true
+  },
+  "tools_section": {
+    "description": "旧版分隔标记",
+    "type": "text",
+    "invisible": true,
+    "hint": "仅保留旧配置兼容，不参与功能控制。"
+  },
+  "tools_list_max": {
+    "description": "工具清单显示上限",
+    "type": "int",
+    "default": 12,
+    "hint": "每次向角色介绍多少个可用工具。超过上限的工具不会列入本轮说明；安装较多工具插件时可适当提高。",
+    "invisible": true
+  },
+  "settings_layout_version": {
+    "description": "配置布局版本",
+    "type": "int",
+    "default": 0,
+    "invisible": true
+  }
+}
