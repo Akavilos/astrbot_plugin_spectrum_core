@@ -19,12 +19,8 @@ def begin_failure_scope() -> dict:
     _failure_scope.set(scope)
     return scope
 
-try:
-    from astrbot.api import logger
-except Exception:
-    import logging
-
-    logger = logging.getLogger("spectrum.freeze")
+from astrbot.api import logger
+from . import limiter
 
 
 class FrozenSkipped(RuntimeError):
@@ -515,11 +511,15 @@ async def call_model(provider, **kwargs):
     epoch = checkpoint()
     if not may_commit(epoch):
         raise FrozenSkipped("系统暂停，未请求模型")
+    await limiter.acquire()
+    if not may_commit(epoch):
+        raise FrozenSkipped("排队期间系统暂停，未请求模型")
     try:
         response = await provider.text_chat(**kwargs)
         if getattr(response, "role", "") == "err":
             raise RuntimeError("供应商返回模型错误结果")
     except Exception as error:
+        limiter.note_of_exception(error)
         record_failure("model", error)
         raise
     if not may_commit(epoch):
@@ -529,33 +529,6 @@ async def call_model(provider, **kwargs):
 
 def business_now() -> float:
     return _INSTANCE.business_now() if _INSTANCE else time.time()
-
-
-def install_provider_guard() -> bool:
-    try:
-        from astrbot.api.provider import ProviderOpenAIOfficial
-    except ImportError:
-        from astrbot.core.provider.sources.openai_source import ProviderOpenAIOfficial
-    original = ProviderOpenAIOfficial._query
-    if getattr(original, "_spectrum_freeze_guard", False):
-        return True
-
-    async def guarded(self, *args, **kwargs):
-        if is_frozen():
-            raise FrozenSkipped("系统已冻结，未发起模型请求")
-        epoch = checkpoint()
-        try:
-            result = await original(self, *args, **kwargs)
-        except Exception as error:
-            record_failure("model", error)
-            raise
-        if not may_commit(epoch):
-            raise FrozenSkipped("模型结果跨越冻结周期，未提交")
-        return result
-
-    guarded._spectrum_freeze_guard = True
-    ProviderOpenAIOfficial._query = guarded
-    return True
 
 
 def elapsed_since(start: float, now: float | None = None) -> float:

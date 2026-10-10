@@ -5,12 +5,11 @@
 from __future__ import annotations
 
 import json
-import logging
 import re
 import time
 from datetime import datetime
 
-logger = logging.getLogger(__name__)
+from astrbot.api import logger
 
 
 GLOBAL = "global"

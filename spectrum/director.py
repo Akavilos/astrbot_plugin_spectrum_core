@@ -7,7 +7,6 @@ from __future__ import annotations
 from . import freeze as freeze_mod
 
 import json
-import logging
 import math
 import random
 import re
@@ -27,10 +26,7 @@ from .storylet import (
 from .thread_lib import LIB_BY_ID, REF_PREFIX, expand_thread_ref
 from .threads import parse_thread_spec, urgency
 
-try:
-    from astrbot.api import logger
-except Exception:
-    logger = logging.getLogger("spectrum")
+from astrbot.api import logger
 
 
 TURN_ORDER = {

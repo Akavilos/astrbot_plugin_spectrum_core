@@ -12,12 +12,8 @@ import time
 from datetime import datetime as _dt
 from typing import Any, Callable
 
-try:
-    from astrbot.api import logger
-except Exception:
-    import logging
-
-    logger = logging.getLogger("spectrum.l2")
+from astrbot.api import logger
+from .prompt_flow import temporary_context
 
 from . import clock
 from . import context
@@ -1718,10 +1714,10 @@ class L2:
             max_tools=int(self.get_cfg("tools_list_max", 12)),
         )
 
-        system = "\n\n".join(
+        system = core
+        dynamic_context = "\n\n".join(
             p
             for p in (
-                core,
 
 
                 worldbook_core_block or None,
@@ -1782,6 +1778,7 @@ class L2:
             model = self.get_cfg("advance_model_override", None) or None
             resp = await freeze_mod.call_model(provider,
                 system_prompt=system, prompt=payload,
+                extra_user_content_parts=temporary_context(dynamic_context),
                 model=model if isinstance(model, str) else None,
             )
         except Exception as error:

@@ -34,8 +34,9 @@
       "isolate_history": {
         "description": "使用整理后的对话历史",
         "type": "bool",
-        "default": true,
-        "hint": "开启后，以真实收发记录重新组织上下文，减少反复模仿旧回复。通常保持开启。"
+        "default": false,
+        "hint": "正式版已停用此旧选项；框架维护聊天历史，夺舍仅在独立实验分支提供。",
+        "invisible": true
       },
       "exchange_limit": {
         "description": "最近对话保留条数",
@@ -332,22 +333,24 @@
     "hint": "先开启总开关，再选择对应模型模式。实验功能不保证控制模型原生推理；关闭总开关即可使用普通回复流程。",
     "items": {
       "possession_enabled": {
-        "description": "启用角色自述思考（实验）",
+        "description": "启用角色思考记录",
         "type": "bool",
         "default": true,
-        "hint": "让角色以第一人称写出本轮思考。关闭后，下面两个续写模式均不启用。此功能不能保证关闭模型原生推理。"
+        "hint": "让角色用第一人称记录本轮想法；关闭后省略思考段。使用普通输出合约，不改变模型原生推理参数。"
       },
       "prefill_possession": {
         "description": "DeepSeek 思考续写模式",
         "type": "bool",
-        "default": true,
-        "hint": "需要先开启角色自述思考。使用支持前缀续写的 DeepSeek beta 接口时，延续角色的思考开头；不支持时使用普通思考格式。"
+        "default": false,
+        "hint": "正式版已停用此旧选项；框架维护聊天历史，夺舍仅在独立实验分支提供。",
+        "invisible": true
       },
       "prefill_gemini_closed": {
         "description": "Gemini 思考续写模式",
         "type": "bool",
-        "default": true,
-        "hint": "需要先开启角色自述思考。尝试以角色已有思考继续生成；接口拒绝这种消息结构时保留思考材料并调整请求格式。兼容性取决于所用接口。"
+        "default": false,
+        "hint": "正式版已停用此旧选项；框架维护聊天历史，夺舍仅在独立实验分支提供。",
+        "invisible": true
       }
     }
   },
@@ -652,7 +655,7 @@
         "description": "限制模型请求频率",
         "type": "bool",
         "default": false,
-        "hint": "对 OpenAI 兼容接口的前台和后台模型请求共同限速；短时间内允许突发请求。嵌入模型及其他接口不保证受此限制。"
+        "hint": "限制光谱前台请求入口和自己的后台模型调用；框架内部重试、工具续轮及其他插件的独立调用仍由各自管理。"
       },
       "low_freq_rpm": {
         "description": "每分钟补充的请求额度",
@@ -737,8 +740,8 @@
   "isolate_history": {
     "description": "使用整理后的对话历史",
     "type": "bool",
-    "default": true,
-    "hint": "开启后，以真实收发记录重新组织上下文，减少反复模仿旧回复。通常保持开启。",
+    "default": false,
+    "hint": "正式版已停用此旧选项；框架维护聊天历史，夺舍仅在独立实验分支提供。",
     "invisible": true
   },
   "exchange_limit": {
@@ -923,24 +926,24 @@
     "invisible": true
   },
   "possession_enabled": {
-    "description": "启用角色自述思考（实验）",
+    "description": "启用角色思考记录",
     "type": "bool",
     "default": true,
-    "hint": "让角色以第一人称写出本轮思考。关闭后，下面两个续写模式均不启用。此功能不能保证关闭模型原生推理。",
+    "hint": "让角色用第一人称记录本轮想法；关闭后省略思考段。使用普通输出合约，不改变模型原生推理参数。",
     "invisible": true
   },
   "prefill_possession": {
     "description": "DeepSeek 思考续写模式",
     "type": "bool",
-    "default": true,
-    "hint": "需要先开启角色自述思考。使用支持前缀续写的 DeepSeek beta 接口时，延续角色的思考开头；不支持时使用普通思考格式。",
+    "default": false,
+    "hint": "正式版已停用此旧选项；框架维护聊天历史，夺舍仅在独立实验分支提供。",
     "invisible": true
   },
   "prefill_gemini_closed": {
     "description": "Gemini 思考续写模式",
     "type": "bool",
-    "default": true,
-    "hint": "需要先开启角色自述思考。尝试以角色已有思考继续生成；接口拒绝这种消息结构时保留思考材料并调整请求格式。兼容性取决于所用接口。",
+    "default": false,
+    "hint": "正式版已停用此旧选项；框架维护聊天历史，夺舍仅在独立实验分支提供。",
     "invisible": true
   },
   "possession_debug": {
@@ -954,7 +957,7 @@
     "description": "限制模型请求频率",
     "type": "bool",
     "default": false,
-    "hint": "对 OpenAI 兼容接口的前台和后台模型请求共同限速；短时间内允许突发请求。嵌入模型及其他接口不保证受此限制。",
+    "hint": "限制光谱前台请求入口和自己的后台模型调用；框架内部重试、工具续轮及其他插件的独立调用仍由各自管理。",
     "invisible": true
   },
   "low_freq_rpm": {

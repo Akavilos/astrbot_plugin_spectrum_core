@@ -7,12 +7,7 @@ from __future__ import annotations
 import asyncio
 import time
 
-try:
-    from astrbot.api import logger
-except Exception:
-    import logging
-
-    logger = logging.getLogger("spectrum.limiter")
+from astrbot.api import logger
 
 
 _CFG_GET = None
@@ -190,92 +185,3 @@ def note_of_exception(exc: BaseException) -> None:
     if isinstance(code, int) and (code == 429 or code == 408 or 500 <= code <= 599):
         note_failure()
 
-
-_patched = False
-_retry_patched = False
-
-
-def _sync_sdk_retry(provider) -> None:
-    client = getattr(provider, "client", None)
-    if client is None:
-        return
-    if enabled():
-        if not hasattr(client, "_spectrum_original_max_retries"):
-            client._spectrum_original_max_retries = client.max_retries
-        client.max_retries = 0
-    elif hasattr(client, "_spectrum_original_max_retries"):
-        client.max_retries = client._spectrum_original_max_retries
-        del client._spectrum_original_max_retries
-
-
-def _patch_429_no_retry() -> bool:
-    global _retry_patched
-    if _retry_patched:
-        return True
-    try:
-        from astrbot.core.provider.sources import request_retry as rr
-    except Exception:
-        logger.exception("[spectrum·低频] 拿不到 request_retry，429 仍会重试（不影响其它功能）")
-        return False
-    original = getattr(rr, "_is_retryable_provider_request_error", None)
-    if original is None:
-        return False
-
-    def _patched(error, *, retry_rate_limits):
-        if enabled():
-            try:
-                if getattr(error, "status_code", None) == 429:
-                    return False
-                resp = getattr(error, "response", None)
-                if getattr(resp, "status_code", None) == 429:
-                    return False
-            except Exception:
-                pass
-        return original(error, retry_rate_limits=retry_rate_limits)
-
-    rr._is_retryable_provider_request_error = _patched
-    _retry_patched = True
-    logger.info("[spectrum·低频] 429 不再重试（掐断「重试把恢复窗口堵死」的自锁）")
-    return True
-
-
-def install() -> bool:
-    global _patched
-    if _patched:
-        return True
-    try:
-        from astrbot.api.provider import ProviderOpenAIOfficial
-    except Exception:
-        try:
-            from astrbot.core.provider.sources.openai_source import (
-                ProviderOpenAIOfficial,
-            )
-        except Exception:
-            logger.exception("[spectrum·低频] 拿不到 ProviderOpenAIOfficial，补丁没装")
-            return False
-
-    original_query = ProviderOpenAIOfficial._query
-
-    async def _query_with_low_freq(self, payloads, tools=None, *args, **kwargs):
-        try:
-            _sync_sdk_retry(self)
-            await acquire()
-        except LowFreqSkipped as e:
-
-            logger.info("[spectrum·低频] 本轮请求跳过：%s", e)
-            raise
-        except Exception:
-
-            logger.exception("[spectrum·低频] 限流检查出错，本轮照常发出")
-        try:
-            return await original_query(self, payloads, tools, *args, **kwargs)
-        except BaseException as e:
-            note_of_exception(e)
-            raise
-
-    ProviderOpenAIOfficial._query = _query_with_low_freq
-    _patched = True
-    _patch_429_no_retry()
-    logger.info("[spectrum·低频] 补丁已装上（熔断 %.0f 秒 · 上限 %.0f 次/分）",
-                pause_seconds(), rpm())
-    return True

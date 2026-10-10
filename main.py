@@ -41,8 +41,7 @@ from .spectrum.parse import (parse as parse_decision, prefill_think,
                             sanitize_text, _extract_reply_content,
                             normalize_tags, extract_tool_calls)
 from .spectrum.person import PersonRegistry, is_private_umo, make_person_id
-from .spectrum.possession import probe as possession_probe
-from .spectrum import prefill as prefill_mod
+from .spectrum.prompt_flow import inject_context, missing_exchange, temporary_context
 from .spectrum import store as store_mod
 from .spectrum import vectors as vectors_mod
 from .spectrum import worldbook as _worldbook
@@ -156,7 +155,7 @@ def _read_prism(umo: str, *, is_group: bool, peer_name: str = "",
             _seen.append("%s:%s" % (getattr(meta, "name", "?"),
                                     ("有cls" if cls is not None else "cls=None")
                                     + ("+能力" if cls is not None and hasattr(cls, "read_context") else "")))
-        logger.info("[spectrum·夺舍] star_map 扫描：%s", " | ".join(_seen[:12]))
+        logger.info("[spectrum·棱镜] star_map 扫描：%s", " | ".join(_seen[:12]))
 
     for meta in list(star_map.values()):
         if getattr(meta, "name", "") != "astrbot_plugin_prism":
@@ -170,7 +169,7 @@ def _read_prism(umo: str, *, is_group: bool, peer_name: str = "",
 
 
         if _dbg:
-            logger.info("[spectrum·夺舍] 命中读记忆的对象：%s（模块 %s）",
+            logger.info("[spectrum·棱镜] 命中读记忆的对象：%s（模块 %s）",
                         type(cls).__name__, type(cls).__module__)
         try:
 
@@ -254,7 +253,7 @@ def _render_life_state(st: str) -> str:
     return "\n".join(lines) if lines else s
 
 
-@star.register("astrbot_plugin_spectrum_core", "Akavilos", "光谱核心 (Spectrum Core)", "0.3.4")
+@star.register("astrbot_plugin_spectrum_core", "Akavilos", "光谱核心 (Spectrum Core)", "0.3.5")
 class SpectrumCorePlugin(star.Star):
     def __init__(self, context: star.Context, config: dict | None = None) -> None:
         """建立配置、存储、人物与生活协调对象，安装运行控制入口。"""
@@ -304,7 +303,6 @@ class SpectrumCorePlugin(star.Star):
         self._current_person: dict[str, tuple[str, float]] = {}
 
 
-        self._possession: dict[str, bool] = {}
         self._send_tool_class = None
         self._send_tool_wrapper = None
         self._send_tool_original = None
@@ -379,26 +377,7 @@ class SpectrumCorePlugin(star.Star):
             logger.warning("[spectrum] 框架不支持 register_web_api，可视化面板将不可用")
 
 
-        try:
-            prefill_mod.set_cfg_getter(self._cfg)
-        except Exception:
-            logger.exception("[spectrum·夺舍] 交配置读取口失败")
-        try:
-            prefill_mod.install()
-        except Exception:
-            logger.exception("[spectrum·夺舍] prefill 补丁装不上，退回正文段模式")
-
-
-        try:
-            low_freq.set_cfg_getter(self._cfg)
-        except Exception:
-            logger.exception("[spectrum·低频] 交配置读取口失败")
-        try:
-            low_freq.install()
-        except Exception:
-            logger.exception("[spectrum·低频] 补丁装不上（不影响其它功能）")
-
-        freeze_mod.install_provider_guard()
+        low_freq.set_cfg_getter(self._cfg)
 
         self._delivery_task = asyncio.create_task(self._delivery_loop())
 
@@ -651,7 +630,7 @@ class SpectrumCorePlugin(star.Star):
         event.set_extra("_spectrum_failure_scope", freeze_mod.begin_failure_scope())
         try:
             await self._on_llm_request(event, req)
-        except freeze_mod.FrozenSkipped:
+        except (freeze_mod.FrozenSkipped, low_freq.LowFreqSkipped):
             event.stop_event()
         except Exception as error:
             freeze_mod.record_failure("request", error)
@@ -754,7 +733,7 @@ class SpectrumCorePlugin(star.Star):
             from_dt, now_dt, self._cfg("latitude", 30.6)
         )
 
-        exchange_text = self._format_exchange(umo)
+        exchange_text = self._format_exchange(umo, req=req, current_text=user_text)
 
 
         person_block = ""
@@ -768,21 +747,8 @@ class SpectrumCorePlugin(star.Star):
             )
 
 
-        if self._cfg("isolate_history", True):
-            req.contexts = []
-            req.prompt = self._build_payload(user_text, exchange_text, sender_name,
-                                              is_group, group_name)
-            runtime_exchange = ""
-        else:
-            runtime_exchange = exchange_text
-
-
-        _request_provider = (await self._pick_provider(
-            umo, frontend=True, selected_id=event.get_extra("selected_provider"))
-            if self._cfg("possession_enabled", True) else None)
-        possession_on = await self._possession_enabled(umo, provider=_request_provider)
-        self._check_turn_runtime(event)
-
+        runtime_exchange = exchange_text
+        possession_on = bool(self._cfg("possession_enabled", True))
 
         prism_block = ""
         if self._cfg("prism_enabled", True):
@@ -792,30 +758,12 @@ class SpectrumCorePlugin(star.Star):
             ).strip()
 
 
-        has_media = bool(
-            getattr(req, "image_urls", None) or getattr(req, "audio_urls", None)
-        )
-
-
-        mode = getattr(self, "_force_mode", {}).get(umo)
-        want_prefill = (mode == "prefill") if mode else prefill_mod.default_prefill_on()
-        _prefill_provider = _request_provider
-        self._check_turn_runtime(event)
-        prefill_on = bool(possession_on and want_prefill and not has_media
-                          and _prefill_provider is not None
-                          and prefill_mod.prefill_adapter_active(_prefill_provider)
-                          and prefill_mod.prefill_enabled_for(_prefill_provider)
-                          and (not req.model or req.model ==
-                               (_prefill_provider.provider_config or {}).get("model")))
-
-
-        persona = _strip_framework_scaffold(req.system_prompt or "")
-
+        persona = req.system_prompt or ""
 
         contract = build_contract(
             possession_on,
-            prefill=prefill_on,
-            recall_text=prism_block if (possession_on and not prefill_on) else "",
+            prefill=False,
+            recall_text="",
             life_style=str(self._cfg("life_style", "") or ""),
         )
         core = f"{contract}\n\n═══ 以下是这个人的设定与说话方式 ═══\n\n{persona}"
@@ -907,7 +855,7 @@ class SpectrumCorePlugin(star.Star):
 
 
             tool_specs, self.store.known_sessions(exclude=None), umo,
-            text_mode=prefill_on,
+            text_mode=False,
 
 
             usage_notes=self.store.tool_notes_all(),
@@ -926,36 +874,23 @@ class SpectrumCorePlugin(star.Star):
         except Exception:
             logger.debug("[spectrum·看见] 读取失败，本轮不注入", exc_info=True)
 
-        req.system_prompt = "\n\n".join(
-            p for p in (
-                core,
-
-
-                worldbook_core_block or None,
-                l3_context,
-                runtime_facts(self.store, str(self._cfg("timezone", "Asia/Shanghai"))),
-                build_address_identity(umo, None if is_group else sender_name),
-                person_block,
-                worldbook_person_block or None,
-                tools_context,
-                build_phase_block("user-message"),
-                worldbook_turn_block or None,
-                build_runtime_block(interval_text, runtime_exchange),
-                observed_block or None,
-            ) if p
+        scene = f"群聊「{group_name}」" if is_group and group_name else "群聊" if is_group else "私聊"
+        turn_identity = f"【当前通信】我正在{scene}回应「{sender_name}」。我分清眼前说话的人与其他会话里的真实人物。"
+        if _NARRATIVE_REQUEST.search(user_text):
+            turn_identity += "\n我收到了完整讲述的请求，这一轮把故事、笑话或解释讲完整，不把内容截在等待追问的地方。"
+        inject_context(
+            req, contract,
+            worldbook_core_block, l3_context,
+            runtime_facts(self.store, str(self._cfg("timezone", "Asia/Shanghai"))),
+            build_address_identity(umo, None if is_group else sender_name),
+            person_block, worldbook_person_block, tools_context,
+            build_phase_block("user-message"), worldbook_turn_block,
+            build_runtime_block(interval_text, runtime_exchange),
+            observed_block, prism_block, turn_identity,
         )
 
-
-        if prefill_on:
-
-
-            req.contexts = list(req.contexts or [])
-            req.contexts.append({
-                "role": "assistant",
-                "content": prefill_mod.build_prefill(prism_block),
-                "_no_save": True,
-            })
-
+        await low_freq.acquire()
+        self._check_turn_runtime(event)
         self._armed[umo] = time.time()
 
 
@@ -963,19 +898,16 @@ class SpectrumCorePlugin(star.Star):
         if len(self._req_at) > 256:
             for k in list(self._req_at)[:128]:
                 self._req_at.pop(k, None)
-        self._last_prefill[umo] = prefill_on
+        self._last_prefill[umo] = False
 
         self._last_tools[umo] = getattr(req, "func_tool", None)
         self._last_sys[umo] = getattr(req, "system_prompt", "") or ""
-        _ctx = [m for m in (getattr(req, "contexts", None) or [])
-                if not (isinstance(m, dict) and m.get("role") == "assistant"
-                        and str(m.get("content") or "").lstrip().startswith(
-                            prefill_mod.OPEN))]
-        self._last_ctx[umo] = _ctx[-8:]
+        self._last_ctx[umo] = list(req.contexts or [])
         event.set_extra("_spectrum_request", {
             "system": self._last_sys[umo], "contexts": self._last_ctx[umo],
             "tools": self._last_tools[umo], "prefill": self._last_prefill.get(umo, False),
-            "at": time.time()})
+            "extra_user_content_parts": list(req.extra_user_content_parts),
+            "prompt": req.prompt, "at": time.time()})
 
 
         if len(self._last_tools) > 256:
@@ -987,52 +919,13 @@ class SpectrumCorePlugin(star.Star):
         if self._cfg("debug", False):
             logger.info("[spectrum] 接管请求 umo=%s\n%s", umo, req.system_prompt)
 
-    def _build_payload(
-        self,
-        user_text: str,
-        exchange_text: str,
-        sender_name: str = "对方",
-        is_group: bool = False,
-        group_name: str | None = None,
-    ) -> str:
-        """拼接实际往来与当前发言，区分群聊、私聊和完整讲述请求。"""
-        lines: list[str] = []
-        if exchange_text:
-            lines.append("【最近的真实往来】只包含真正收发过的内容，按时间先后排列：")
-            lines.append(exchange_text)
-            lines.append("")
-        if is_group:
-            scene = f"群聊「{group_name}」" if group_name else "群聊"
-            lines.append(f"【当前事件 · {scene}】")
-            lines.append(f"群友「{sender_name}」刚刚发来：{user_text}")
-            lines.append(
-                "这是多人参与的群聊。你回应当前这位群友即可，也可以用她自己的话"
-                "回应群里的其他人；但不要说只有你们两个人，也不要虚构出一堆人。"
-            )
-        else:
-
-
-            lines.append("【当前事件 · 私聊】")
-            lines.append(f"正在跟你说话的人是「{sender_name}」，刚刚发来：{user_text}")
-            lines.append(
-                f"这是一对一私聊，此刻在跟你说话的只有「{sender_name}」一个。"
-                f"其他任何人都在自己的会话里——但他们是**真实存在的人**。"
-                f"用户提到谁、指着谁聊，那就是真的那位，别把他当虚拟人。"
-            )
-
-
-        if _NARRATIVE_REQUEST.search(user_text):
-            lines.append(
-                "【对方明明要听一个完整的东西】对方点名要你完整讲述（讲个故事/笑话/"
-                "解释来龙去脉）。这是一次『点单式』请求，不是闲聊——请一口气把内容讲完，"
-                "不要在中途停住等他追问。分段发送由系统自动完成，你只管把话说完。"
-            )
-        return "\n".join(lines)
-
-    def _format_exchange(self, umo: str) -> str:
+    def _format_exchange(self, umo: str, *, req=None, current_text: str = "") -> str:
         rows = self.store.recent_exchange(umo, int(self._cfg("exchange_limit", 12)))
         if not rows:
             return ""
+        if req is not None:
+            return missing_exchange(rows, req.contexts, current_text, self.store.parse_meta,
+                                    is_group="GroupMessage" in umo)
 
         lines = []
         for r in reversed(rows):
@@ -1094,6 +987,7 @@ class SpectrumCorePlugin(star.Star):
         scope = event.get_extra("_spectrum_failure_scope", {})
         if (getattr(response, "role", "") == "err"
                 and not scope.get("model_failed", False) and not scope.get("skipped", False)):
+            low_freq.note_failure()
             freeze_mod.record_failure("model-response", RuntimeError("宿主返回模型错误结果"))
         try:
             umo = event.unified_msg_origin
@@ -1543,6 +1437,9 @@ class SpectrumCorePlugin(star.Star):
                 system_prompt=sys_p,
                 prompt=self._V20_REASK.format(raw=raw[:2000], error=error),
                 contexts=request_data.get("contexts", self._last_ctx.get(umo)) or None,
+                extra_user_content_parts=(list(request_data.get("extra_user_content_parts", []))
+                    + temporary_context("【这一轮的来信】\n" + request_data["prompt"]
+                                        if request_data.get("prompt") else "")),
             )
             text = (getattr(resp, "completion_text", "") or "").strip()
             if not text:
@@ -1569,33 +1466,6 @@ class SpectrumCorePlugin(star.Star):
         except Exception:
             logger.exception("[spectrum] 连默认 provider 都拿不到")
             return None
-
-    async def _possession_enabled(self, umo: str, *, provider=None) -> bool:
-        if not self._cfg("possession_enabled", True):
-            return False
-
-
-        try:
-            if provider is None:
-                provider = await self._pick_provider(umo)
-            if provider is not None:
-                cfg = getattr(provider, "provider_config", {}) or {}
-                key = json.dumps([type(provider).__name__, cfg.get("id"),
-                                  cfg.get("model"), cfg.get("api_base"),
-                                  cfg.get("custom_extra_body")], sort_keys=True)
-                if key not in self._possession:
-                    self._possession[key] = True
-                    leftover = await possession_probe.probe(provider)
-                    if leftover > 0:
-                        logger.warning(
-                            "[spectrum·夺舍] 本次诊断返回 reasoning_content %d 字；"
-                            "原生思考参数由实际模型及提供商配置决定，诊断不改变夺舍开关。", leftover)
-                    elif leftover == 0:
-                        logger.info("[spectrum·夺舍] 本次诊断未返回 reasoning_content；不据此断言原生思考已关闭")
-        except Exception:
-            logger.debug("[spectrum·夺舍] 环境诊断失败，跳过（不影响使用）", exc_info=True)
-
-        return True
 
     async def _delivery_loop(self) -> None:
         interval = max(5, int(self._cfg("poll_seconds", 10)))
@@ -1820,32 +1690,11 @@ class SpectrumCorePlugin(star.Star):
 
 
         if a in ("prefill", "think", "夺舍"):
-            self._force_mode = getattr(self, "_force_mode", {})
-            self._force_mode[umo] = "prefill"
-            yield event.plain_result(
-                "已切到**夺舍模式**：思考走 assistant 位置那条 `<thinking>`，"
-                "工具走文本调用。\n（要求 provider 端点是 /beta，否则会自动退回默认模式）"
-            )
+            yield event.plain_result("正式版使用普通角色合约与框架原生工具。夺舍续写仅在仓库的 experimental/possession 实验分支提供。")
             return
-        if a in ("default", "contract", "合约", "默认"):
-            self._force_mode = getattr(self, "_force_mode", {})
-            self._force_mode[umo] = "default"
-            yield event.plain_result(
-                "已切到**默认合约模式**：回到三段式 `<think>/<life>/<reply>`，"
-                "工具走框架原生调用。"
-            )
+        if a in ("default", "contract", "合约", "默认", "mode"):
+            yield event.plain_result("当前为普通角色合约模式；角色思考记录由插件配置控制，工具由 AstrBot 原生执行。")
             return
-        if a == "mode":
-            cur = getattr(self, "_force_mode", {}).get(umo)
-            cfg = prefill_mod.default_prefill_on()
-            now = cur or ("prefill" if cfg else "default")
-            yield event.plain_result(
-                f"当前模式：{now}（配置默认={'夺舍' if cfg else '默认合约'}，"
-                f"本会话{'被 /光谱核心 覆盖为 ' + cur if cur else '未覆盖'}）\n"
-                "用法：/光谱核心 prefill 切夺舍 · /光谱核心 default 切默认 · /光谱核心 mode 查看"
-            )
-            return
-
 
         if a in ("where", "位置", "主线", "life"):
             owner = self.l2.life.get_owner()

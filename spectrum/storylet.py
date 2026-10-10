@@ -7,17 +7,13 @@ from __future__ import annotations
 from . import freeze as freeze_mod
 
 import json
-import logging
 import math
 import re
 import time
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable
 
-try:
-    from astrbot.api import logger
-except Exception:
-    logger = logging.getLogger("spectrum")
+from astrbot.api import logger
 
 from . import threads as _threads
 

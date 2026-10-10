@@ -17,12 +17,7 @@ from . import recall as _recall
 from . import vectors as _vectors
 from . import worldbook as _worldbook
 
-try:
-    from astrbot.api import logger
-except Exception:
-    import logging
-
-    logger = logging.getLogger("spectrum")
+from astrbot.api import logger
 
 
 GLOBAL_UMO = "global"

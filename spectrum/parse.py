@@ -20,7 +20,7 @@ _PARSE_KEYS = frozenset({
 
     "relatedId",
     "timelinePlan", "steps", "dueAt", "summary", "notBefore", "expiresAt", "trigger",
-    "sharedEvents", "subject", "text", "basis", "movement", "validUntil", "with",
+    "sharedEvents", "subject", "text", "basis", "sourceEntryId", "movement", "validUntil", "with",
     "memoryUpdates", "outingUpdate", "sleepUpdate", "until",
 
     "state", "session", "who", "kind", "id", "sendAt", "outcome",

@@ -4,10 +4,9 @@
 
 from __future__ import annotations
 
-import logging
 from datetime import datetime
 
-logger = logging.getLogger("spectrum")
+from astrbot.api import logger
 
 
 THINK_SECTION = """\

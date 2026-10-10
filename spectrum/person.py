@@ -8,12 +8,7 @@ import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-try:
-    from astrbot.api import logger
-except Exception:
-    import logging
-
-    logger = logging.getLogger("spectrum.person")
+from astrbot.api import logger
 
 
 _PLACEHOLDERS = ("某人", "对方", "群友", "", "N/A", "n/a")
